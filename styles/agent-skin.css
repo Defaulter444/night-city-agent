@@ -1,0 +1,283 @@
+/**
+ * Оформление окна Агента: рамочные секции с подписями, неон, единая палитра.
+ *
+ * Слой намеренно отделён от agent.css и подключается ПОСЛЕ него. Здесь только
+ * цвет, рамки и шрифт — раскладку (flex, ширины, порядок) не трогаем, иначе
+ * правка вида начнёт ломать поведение окна. Чтобы вернуть прежний вид,
+ * достаточно убрать этот файл из module.json.
+ */
+
+.nca-app .nca {
+  --sk-bg: #04080b;
+  --sk-panel: rgba(0, 0, 0, .55);
+  --sk-line: #00e5ff;
+  --sk-line-dim: rgba(0, 229, 255, .32);
+  --sk-ink: #b8f6ff;
+  --sk-ink-dim: rgba(184, 246, 255, .62);
+  --sk-hover: #ffdd00;
+  --sk-mine: #00e5ff;
+  --sk-alert: #ff5a4d;
+  --sk-money: #ffd54f;
+  --sk-radius: 10px;
+
+  background: var(--sk-bg);
+  color: var(--sk-ink);
+}
+
+/* --------------------------------------------------------- рамки-секции */
+/* Приём с подписью, врезанной в рамку: секция читается как блок, а не как
+   набор случайных кнопок. Подпись рисуем псевдоэлементом, чтобы не трогать
+   разметку — она общая с рабочей версией окна. */
+.nca-app .nca .nca-top,
+.nca-app .nca .nca-side,
+.nca-app .nca .nca-main,
+.nca-app .nca .nca-compose {
+  position: relative;
+  border: 1px solid var(--sk-line-dim);
+  border-radius: var(--sk-radius);
+  background: var(--sk-panel);
+}
+
+/* Подписи стоят ВНУТРИ панели, в отведённом сверху отступе. Вынести их на
+   рамку с отрицательным сдвигом нельзя: «Аппарат» — горизонтальный ряд
+   кнопок, подпись уезжала за край окна и налезала на заголовок. */
+.nca-app .nca .nca-side,
+.nca-app .nca .nca-main { padding-top: 15px; }
+
+.nca-app .nca .nca-side::before,
+.nca-app .nca .nca-main::before {
+  position: absolute;
+  top: 3px;
+  left: 11px;
+  color: var(--sk-line);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  opacity: .75;
+  pointer-events: none;
+}
+.nca-app .nca .nca-side::before { content: "Контакты"; }
+.nca-app .nca .nca-main::before { content: "Переписка"; }
+
+/* Панель аппарата подписи не получает — её роль и так очевидна по номеру. */
+.nca-app .nca .nca-top { border-radius: var(--sk-radius) var(--sk-radius) 0 0; }
+
+/* Порядок в шапке: справочная кнопка всегда крайняя справа, службы — перед
+   ней. В базовом файле отступ «auto» висел на справке и на панели устройств,
+   а появление новой кнопки между ними ломало выравнивание. */
+.nca-app .nca .nca-top .nca-devbar { margin-left: auto; }
+.nca-app .nca .nca-top .nca-sosbtn { margin-left: 0; }
+.nca-app .nca button.nca-helpbtn { margin-left: 0; }
+
+/* ------------------------------------------------------------- заголовки */
+.nca-app .nca .cap {
+  color: var(--sk-line);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* Свой номер — самое частое, за чем сюда лезут: крупно и моноширинно. */
+.nca-app .nca .nca-mynum b {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 21px;
+  letter-spacing: .06em;
+  color: #fff;
+  text-shadow: 0 0 12px rgba(0, 229, 255, .55);
+}
+
+/* ---------------------------------------------------------------- кнопки */
+.nca-app .nca button {
+  border: 1px solid var(--sk-line-dim);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .45);
+  color: var(--sk-ink);
+  transition: color .12s, border-color .12s, background .12s;
+}
+.nca-app .nca button:hover {
+  color: var(--sk-hover);
+  border-color: var(--sk-hover);
+  background: rgba(0, 0, 0, .7);
+}
+
+/* Тревожное и денежное красим по смыслу, а не одинаково. */
+.nca-app .nca .nca-sosbtn        { border-color: rgba(255, 90, 77, .55); color: #ffb3ab; }
+.nca-app .nca .nca-sosbtn:hover  { border-color: var(--sk-alert); color: #fff; background: rgba(255, 90, 77, .18); }
+.nca-app .nca .nca-ebbtn         { border-color: rgba(255, 213, 79, .5); color: var(--sk-money); }
+.nca-app .nca .nca-ebbtn:hover   { border-color: var(--sk-money); color: #fff; background: rgba(255, 213, 79, .16); }
+.nca-app .nca .nca-mutebtn       { border-color: var(--sk-alert); color: #ffb3ab; animation: nca-pulse 1.1s ease-in-out infinite; }
+
+@keyframes nca-pulse {
+  50% { box-shadow: 0 0 0 3px rgba(255, 90, 77, .16); }
+}
+
+/* Длинное имя рингтона больше не распирает шапку. */
+.nca-app .nca .nca-ringpick button {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Выбранный аппарат виден сразу. */
+.nca-app .nca .nca-dev.on {
+  border-color: var(--sk-line);
+  color: #fff;
+  box-shadow: inset 0 0 12px rgba(0, 229, 255, .18);
+}
+
+/* -------------------------------------------------------------- контакты */
+.nca-app .nca .nca-contact {
+  border: 1px solid transparent;
+  border-left: 2px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+}
+.nca-app .nca .nca-contact:hover { border-color: var(--sk-line-dim); }
+.nca-app .nca .nca-contact.on {
+  border-color: var(--sk-line-dim);
+  border-left-color: var(--sk-line);
+  background: rgba(0, 229, 255, .08);
+  color: #fff;
+}
+.nca-app .nca .nca-contact .name { font-weight: 600; }
+/* Незнакомый номер честно выглядит незнакомым. */
+.nca-app .nca .nca-contact .name.unknown {
+  font-family: ui-monospace, Consolas, monospace;
+  color: var(--sk-ink-dim);
+}
+.nca-app .nca .nca-contact .subnum,
+.nca-app .nca .nca-contact .preview { color: var(--sk-ink-dim); font-size: 11px; }
+.nca-app .nca .nca-contact .badge {
+  background: var(--sk-alert);
+  color: #12060a;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------- сообщения */
+.nca-app .nca .nca-msg .bubble {
+  border: 1px solid var(--sk-line-dim);
+  border-radius: 12px 12px 12px 4px;
+  background: rgba(0, 0, 0, .5);
+  padding: 7px 10px;
+}
+/* Своё — залито акцентом, чужое — обведено: различимо и боковым зрением. */
+.nca-app .nca .nca-msg.mine .bubble {
+  border-radius: 12px 12px 4px 12px;
+  border-color: var(--sk-mine);
+  background: rgba(0, 229, 255, .12);
+  color: #eafdff;
+}
+.nca-app .nca .nca-msg time {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--sk-ink-dim);
+}
+/* Метка «вслух» — предупреждение, а не украшение. */
+.nca-app .nca .nca-msg .aloud {
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 213, 79, .6);
+  border-radius: 4px;
+  color: var(--sk-money);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* ----------------------------------------------------------------- ввод */
+.nca-app .nca .nca-input {
+  border: 1px solid var(--sk-line-dim);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .5);
+  color: var(--sk-ink);
+  caret-color: var(--sk-line);
+}
+.nca-app .nca .nca-input:focus {
+  border-color: var(--sk-line);
+  box-shadow: 0 0 0 2px rgba(0, 229, 255, .14);
+  outline: none;
+}
+.nca-app .nca .nca-input::placeholder { color: var(--sk-ink-dim); }
+
+.nca-app .nca .nca-name {
+  border: 1px solid var(--sk-line-dim);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .5);
+  color: var(--sk-ink);
+}
+
+/* ------------------------------------------------------- заметки и пустое */
+.nca-app .nca .nca-aloud-note {
+  border: 1px solid rgba(255, 213, 79, .45);
+  border-left: 3px solid var(--sk-money);
+  border-radius: 8px;
+  background: rgba(255, 213, 79, .07);
+  color: #ffeaa0;
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.nca-app .nca .nca-warn {
+  border: 1px solid rgba(255, 90, 77, .55);
+  border-left: 3px solid var(--sk-alert);
+  border-radius: 8px;
+  background: rgba(255, 90, 77, .09);
+  color: #ffc2bb;
+  padding: 7px 10px;
+}
+.nca-app .nca .nca-empty { color: var(--sk-ink-dim); }
+.nca-app .nca .nca-linkbtn { color: var(--sk-line); }
+
+/* --------------------------------------------- диалоги Агента */
+/* Кнопки диалога переносятся на новую строку, если не помещаются в ряд:
+   раньше третья кнопка просто уезжала за край окна. */
+.nca-dialog-app .form-footer,
+.nca-dialog-app .dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.nca-dialog-app .form-footer button,
+.nca-dialog-app .dialog-buttons button {
+  flex: 1 1 auto;
+  min-width: 150px;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------- шапка переписки */
+/* Строка «Собеседник» — flex без переноса: после появления кнопки «Эдди»
+   элементы перестали помещаться и наезжали друг на друга. Разрешаем перенос
+   и позволяем длинному имени сжиматься, а не выдавливать соседей. */
+.nca-app .nca .nca-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.nca-app .nca .nca-head .nca-who {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.nca-app .nca .nca-head .nca-who .num {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 15px;
+  color: #fff;
+  white-space: nowrap;
+}
+.nca-app .nca .nca-head .nca-who .asname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--sk-ink-dim);
+}
+.nca-app .nca .nca-head .nca-name {
+  flex: 0 1 150px;
+  margin-left: auto;
+}

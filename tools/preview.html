@@ -1,0 +1,160 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Агент — стенд оформления</title>
+<!-- Стенд подключает ТЕ ЖЕ файлы стилей, что и модуль в игре, поэтому
+     увиденное здесь соответствует тому, что будет в окне Foundry. -->
+<link rel="stylesheet" href="../styles/agent.css">
+<link rel="stylesheet" href="../styles/agent-skin.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  /* Ядро Foundry задаёт это правило, и наши стили с ним борются.
+     Повторяем его здесь, иначе стенд соврёт про ширину кнопок. */
+  button { width: 100%; }
+
+  body { margin: 0; padding: 22px; background: #0b0f12; color: #cfe9ee;
+         font-family: "Segoe UI", system-ui, sans-serif; }
+  h2 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+       color: #7fd8e6; margin: 26px 0 8px; font-weight: 600; }
+  .frame { width: 760px; max-width: 100%; border: 1px solid #1d2f36; border-radius: 6px;
+           overflow: hidden; background: #04080b; }
+  .frame .nca-app { display: block; }
+  .chatwrap { width: 420px; padding: 10px; background: #12161a;
+              border: 1px solid #1d2f36; border-radius: 6px; }
+  .cols { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+</style>
+
+<h2>Окно Агента — переписка</h2>
+<div class="frame"><div class="nca-app"><div class="nca">
+  <header class="nca-top">
+    <div class="nca-mynum">
+      <span class="cap">Мой номер</span>
+      <b>2137-5581</b>
+      <button type="button" title="Скопировать номер"><i class="fa-regular fa-copy"></i></button>
+    </div>
+    <div class="nca-devbar">
+      <button type="button" class="nca-dev on"><b>2137-5581</b><span>карманный</span></button>
+      <button type="button" class="nca-dev"><b>4410-0298</b><span>внутренний</span></button>
+    </div>
+    <span class="nca-ringpick">
+      <button type="button"><i class="fa-solid fa-music"></i> ring_kabuki_long_name.ogg</button>
+      <button type="button"><i class="fa-solid fa-rotate-left"></i></button>
+    </span>
+    <button type="button" class="nca-mutebtn"><i class="fa-solid fa-bell-slash"></i> Звонит — заглушить</button>
+    <button type="button" class="nca-sosbtn"><i class="fa-solid fa-truck-medical"></i> Службы</button>
+    <button type="button" class="nca-helpbtn"><i class="fa-solid fa-circle-question"></i></button>
+  </header>
+
+  <div class="nca-body">
+    <aside class="nca-side">
+      <div class="nca-sidehead">
+        <button type="button" class="nca-addcontact"><i class="fa-solid fa-user-plus"></i> Новый контакт</button>
+      </div>
+      <ul class="nca-contacts">
+        <li><button type="button" class="nca-contact on">
+          <span class="row"><span class="name">Каптёр</span><span class="badge">2</span></span>
+          <span class="subnum">8015-0214</span>
+          <span class="preview">жду у Тотентанца, не опаздывай</span>
+        </button></li>
+        <li><button type="button" class="nca-contact">
+          <span class="row"><span class="name">Ласточка</span></span>
+          <span class="subnum">7712-4466</span>
+          <span class="preview">аудит закрыт, бумаги у меня</span>
+        </button></li>
+        <li><button type="button" class="nca-contact">
+          <span class="row"><span class="name unknown">3390-1188</span></span>
+          <span class="preview">кто это?</span>
+        </button></li>
+      </ul>
+    </aside>
+
+    <section class="nca-main">
+      <div class="nca-head">
+        <div class="nca-who">
+          <span class="cap">Собеседник</span>
+          <b class="num">8015-0214</b>
+          <span class="asname">в книге: Каптёр</span>
+        </div>
+        <input class="nca-name" type="text" value="Каптёр" placeholder="Имя в книге…">
+        <button type="button">Записать</button>
+        <button type="button" class="nca-ebbtn"><i class="fa-solid fa-coins"></i> Эдди</button>
+      </div>
+
+      <div class="nca-thread">
+        <div class="nca-msg"><div class="bubble">Груз на месте. Двое у входа, оба с дробовиками.<time>21:14</time></div></div>
+        <div class="nca-msg mine"><div class="bubble">Понял. Жди сигнала, не суйся.<time>21:15</time></div></div>
+        <div class="nca-msg"><div class="bubble">Ага, только у меня агент вслух всё зачитывает.<time><span class="aloud">вслух</span>21:16</time></div></div>
+        <div class="nca-msg mine"><div class="bubble">[перевод] 500 эдди — за работу в Уотсоне<time>21:18</time></div></div>
+      </div>
+
+      <div class="nca-aloud-note">
+        <i class="fa-solid fa-volume-high"></i>
+        Внутренний агент без хирона: он управляется голосом и всё проговаривает вслух.
+        Вы диктуете сообщения, а входящие агент зачитывает — рядом стоящие это слышат.
+      </div>
+
+      <div class="nca-compose">
+        <textarea class="nca-input" rows="2" placeholder="Сообщение… (Enter — отправить, Shift+Enter — перенос строки)"></textarea>
+        <button type="button">Отправить</button>
+      </div>
+    </section>
+  </div>
+</div></div></div>
+
+<h2>Пустые состояния</h2>
+<div class="cols">
+  <div class="frame" style="width:360px"><div class="nca-app"><div class="nca">
+    <div class="nca-warn">Нет сигнала: мастер не в игре.</div>
+    <div class="nca-empty">
+      Устройства нет. Попросите мастера выдать агент.
+      <div><button type="button" class="nca-linkbtn">Открыть руководство</button></div>
+    </div>
+  </div></div></div>
+
+  <div class="frame" style="width:360px"><div class="nca-app"><div class="nca">
+    <div class="nca-body">
+      <aside class="nca-side">
+        <div class="nca-sidehead"><button type="button" class="nca-addcontact"><i class="fa-solid fa-user-plus"></i> Новый контакт</button></div>
+        <ul class="nca-contacts"><li class="nca-empty small">Контактов нет.<br>Нажмите «Новый контакт».</li></ul>
+      </aside>
+      <section class="nca-main"><div class="nca-empty">Выберите собеседника слева или добавьте новый контакт.</div></section>
+    </div>
+  </div></div></div>
+</div>
+
+<h2>Карточки в чате</h2>
+<div class="cols">
+  <div class="chatwrap">
+    <div class="nca-card nca-card-eb">
+      <div class="nca-card-kicker"><i class="fa-solid fa-coins"></i> ПЕРЕВОД</div>
+      <div class="nca-card-title">Перевод через Агента от «Ласточка» — за работу в Уотсоне</div>
+      <div class="nca-card-grid"><span>Зачисление</span><b>500 эдди</b></div>
+      <button type="button" class="nca-deposit"><i class="fa-solid fa-coins"></i> Зачислить «Каптёр»</button>
+      <div class="nca-card-clock"><i class="far fa-clock"></i><span class="nca-card-clock-source">ВРЕМЯ МИРА</span><span>14 октября 2045, 21:18</span></div>
+    </div>
+  </div>
+
+  <div class="chatwrap">
+    <div class="nca-card nca-card-emergency">
+      <div class="nca-card-kicker"><i class="fa-solid fa-truck-medical"></i> ВЫЗОВ ЭКСТРЕННОЙ СЛУЖБЫ</div>
+      <div class="nca-card-title">Trauma Team International</div>
+      <div class="nca-card-grid">
+        <span>Вызывает</span><b>Норма Осборн</b>
+        <span>Место</span><b>Бриджтаун, контейнер</b>
+        <span>Покрытие</span><b>подписка «Люкс»</b>
+        <span>Прибытие</span><b>через 3 раунд(ов) (1d6)</b>
+        <span>Плата за вызов</span><b>покрыто подпиской</b>
+      </div>
+      <div class="nca-card-note">Полис подтверждён, группа выехала.</div>
+      <div class="nca-card-clock"><i class="far fa-clock"></i><span class="nca-card-clock-source">ВРЕМЯ МИРА</span><span>14 октября 2045, 21:20</span></div>
+    </div>
+  </div>
+
+  <div class="chatwrap">
+    <div class="nca-card nca-card-network">
+      <div class="nca-card-kicker"><i class="fa-solid fa-tower-broadcast"></i> ЗИККУРАТ · ДАТАПУЛ НАЙТ-СИТИ</div>
+      <div class="nca-card-title">Перекрыт Уотсон</div>
+      <div class="nca-card-body">MaxTac проводит зачистку в районе Кабуки.<br>Движение закрыто до утра.</div>
+      <div class="nca-card-clock"><i class="far fa-clock"></i><span class="nca-card-clock-source">МЕСТНОЕ ВРЕМЯ</span><span>11.08.2026, 19:42</span></div>
+    </div>
+  </div>
+</div>

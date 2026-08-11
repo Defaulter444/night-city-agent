@@ -1,0 +1,111 @@
+<div class="nca nca-gmpanel">
+  <div class="nca-gmtop">
+    <button type="button" class="nca-helpbtn" data-action="silence" title="Оборвать все звонки на этом клиенте">
+      <i class="fa-solid fa-bell-slash"></i> Заглушить
+    </button>
+    <button type="button" class="nca-helpbtn" data-action="help" title="Руководство и история версий">
+      <i class="fa-solid fa-circle-question"></i> Руководство
+    </button>
+  </div>
+
+  <section class="nca-block">
+    <h3>Выдать устройство</h3>
+    <div class="nca-newrow">
+      <select class="nca-new-kind">
+        {{#each kinds}}<option value="{{value}}">{{label}}</option>{{/each}}
+      </select>
+      <select class="nca-new-owner">
+        <option value="">НИП мастера</option>
+        {{#each users}}<option value="{{id}}">{{name}}</option>{{/each}}
+      </select>
+      <input class="nca-new-label" type="text" placeholder="Подпись (кому/чей)" />
+      <input class="nca-new-num" type="text" maxlength="12" placeholder="Номер (пусто — случайный)"
+             title="Можно вписать свой номер: восемь цифр, дефис ставится сам" />
+      <label class="nca-check" title="Внутренний агент без хирона — только голос">
+        <input class="nca-new-audio" type="checkbox" /> без хирона
+      </label>
+      <button type="button" data-action="create">Выдать номер</button>
+    </div>
+  </section>
+
+  <section class="nca-block">
+    <h3>Список устройств</h3>
+    <table class="nca-devices">
+      <thead>
+        <tr><th>Номер</th><th>Тип</th><th>Подпись</th><th>Владелец</th><th>Рингтон</th><th></th></tr>
+      </thead>
+      <tbody>
+        {{#each devices}}
+          <tr>
+            <td><b>{{num}}</b></td>
+            <td>{{kindName}}{{#if audioOnly}} <span class="tag">без хирона</span>{{/if}}</td>
+            <td>{{label}}</td>
+            <td>
+              <select class="nca-owner" data-num="{{num}}"
+                      {{#if locked}}disabled title="Вживлённый агент нельзя передать другому владельцу"{{/if}}>
+                <option value="">НИП мастера</option>
+                {{#each users}}
+                  <option value="{{id}}"{{#if selected}} selected{{/if}}>{{name}}</option>
+                {{/each}}
+              </select>
+              {{#if locked}}<span class="tag" title="Достаётся только хирургией">вживлён</span>{{/if}}
+            </td>
+            <td>
+              <div class="nca-ringcell">
+                <input class="nca-ringtone" data-num="{{num}}" type="text" value="{{ringtone}}" placeholder="общий" />
+                <button type="button" data-action="pickRingtone" data-num="{{num}}" title="Выбрать файл">
+                  <i class="fa-solid fa-folder-open"></i>
+                </button>
+                <button type="button" data-action="playRingtone" data-num="{{num}}" title="Прослушать">
+                  <i class="fa-solid fa-volume-high"></i>
+                </button>
+              </div>
+            </td>
+            <td class="acts">
+              <button type="button" data-action="open" data-num="{{num}}" title="Открыть этот агент">
+                <i class="fa-solid fa-mobile-screen-button"></i>
+              </button>
+              <button type="button" data-action="remove" data-num="{{num}}" title="Изъять устройство">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        {{else}}
+          <tr><td colspan="6" class="nca-empty small">Устройств пока нет.</td></tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="nca-block">
+    <h3>Перехват</h3>
+    <div class="nca-watchrow">
+      <ul class="nca-threads">
+        {{#each threads}}
+          <li>
+            <button type="button" class="nca-thread-pick{{#if selected}} on{{/if}}"
+                    data-action="watch" data-key="{{key}}">
+              <span class="row"><span>{{aLabel}} ↔ {{bLabel}}</span><span class="cnt">{{count}}</span></span>
+              <span class="preview">{{time}} · {{preview}}</span>
+            </button>
+          </li>
+        {{else}}
+          <li class="nca-empty small">Переписок пока нет.</li>
+        {{/each}}
+      </ul>
+
+      <div class="nca-watch">
+        {{#if watching}}
+          <div class="nca-head"><b>{{watching.a}}</b> ↔ <b>{{watching.b}}</b></div>
+          {{#each watching.messages}}
+            <div class="nca-msg{{#unless left}} mine{{/unless}}">
+              <div class="bubble"><span class="from">{{from}}</span>{{text}}<time>{{time}}</time></div>
+            </div>
+          {{/each}}
+        {{else}}
+          <div class="nca-empty small">Выберите переписку слева.</div>
+        {{/if}}
+      </div>
+    </div>
+  </section>
+</div>

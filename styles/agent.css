@@ -1,0 +1,420 @@
+/* Агент — тёмный интерфейс с красным акцентом, под тон Cyberpunk RED. */
+
+.nca-app .window-content { padding: 0; background: #14100f; }
+
+/* ------------------------------------------------------------------------
+   Ядро Foundry задаёт `button { width: 100%; margin: 0 1px }` и светлый фон
+   (public/css/style.css). Специфичность там (0,1,1) — ровно как у обычного
+   `.класс button`, поэтому свои правила приходится вешать на два класса,
+   иначе кнопка растягивается во всю строку и съедает поле ввода.
+   ------------------------------------------------------------------------ */
+
+.nca-app .nca button {
+  width: auto;
+  margin: 0;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  line-height: 1.4;
+}
+
+.nca-app .nca input[type="text"],
+.nca-app .nca textarea,
+.nca-app .nca select {
+  min-width: 0;
+  font-family: inherit;
+}
+
+.nca {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: #d9d2c8;
+  font-family: var(--font-primary, sans-serif);
+}
+
+.nca-warn {
+  background: #4a1414;
+  color: #ffd9d9;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #7a2020;
+}
+
+.nca-empty { padding: 18px; color: #8c8377; text-align: center; }
+.nca-empty.small { font-size: 12px; padding: 10px; }
+
+/* ---------------------------------------------------------- панель устройств */
+
+.nca-devbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #1c1614;
+  border-bottom: 1px solid #33231f;
+  flex: 0 0 auto;
+  overflow-x: auto;
+}
+
+.nca-app .nca button.nca-dev {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  width: auto; gap: 0;
+  background: #241b18; border: 1px solid #3b2a25; border-radius: 4px;
+  color: #cbc2b6; padding: 3px 9px; line-height: 1.2; cursor: pointer; white-space: nowrap;
+}
+.nca-dev span { font-size: 10px; color: #8c8377; }
+.nca-dev.on { border-color: #c0392b; background: #33201c; color: #fff; }
+
+/* ------------------------------------------------------------------- корпус */
+
+.nca-body { display: flex; flex: 1 1 auto; min-height: 0; }
+
+.nca-side {
+  flex: 0 0 210px;
+  display: flex; flex-direction: column;
+  border-right: 1px solid #33231f;
+  background: #191312;
+  min-height: 0;
+}
+
+.nca-dialrow { display: flex; gap: 4px; padding: 6px; }
+.nca-dialrow input {
+  flex: 1 1 auto; min-width: 0;
+  background: #241b18; border: 1px solid #3b2a25; color: #d9d2c8;
+  border-radius: 3px; padding: 2px 6px;
+}
+.nca-app .nca-dialrow button, .nca-app .nca-head button {
+  width: auto; flex: 0 0 auto;
+  background: #33201c; border: 1px solid #5a2f27; color: #e6ded3;
+  border-radius: 3px; cursor: pointer; padding: 3px 9px;
+}
+
+.nca-contacts { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1 1 auto; }
+.nca-contacts li { margin: 0; }
+
+.nca-app .nca button.nca-contact {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: 0; border-bottom: 1px solid #241b18;
+  border-radius: 0; color: #cbc2b6; padding: 6px 8px; cursor: pointer;
+}
+.nca-contact:hover { background: #221a17; }
+.nca-contact.on { background: #2c1d19; box-shadow: inset 3px 0 0 #c0392b; }
+.nca-contact .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.nca-contact .name { font-weight: 600; }
+.nca-contact .name.unknown { color: #8c8377; font-style: italic; }
+.nca-contact .preview {
+  display: block; font-size: 11px; color: #7d7468;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nca-contact .badge {
+  background: #c0392b; color: #fff; border-radius: 9px;
+  font-size: 10px; padding: 0 6px; min-width: 16px; text-align: center;
+}
+
+/* ---------------------------------------------------------------- переписка */
+
+.nca-main { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+.nca-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; background: #1c1614; border-bottom: 1px solid #33231f;
+}
+.nca-head .who { color: #fff; }
+.nca-head .num { color: #8c8377; font-size: 11px; }
+.nca-head .nca-name {
+  margin-left: auto; width: 150px;
+  background: #241b18; border: 1px solid #3b2a25; color: #d9d2c8;
+  border-radius: 3px; padding: 1px 6px; font-size: 12px;
+}
+
+.nca-thread { flex: 1 1 auto; overflow-y: auto; padding: 10px; min-height: 0; }
+
+.nca-msg { display: flex; margin-bottom: 6px; }
+.nca-msg.mine { justify-content: flex-end; }
+
+.nca-msg .bubble {
+  max-width: 72%;
+  background: #241b18; border: 1px solid #3b2a25;
+  border-radius: 10px; padding: 5px 10px 3px;
+  font-size: 13px; word-wrap: break-word; white-space: pre-wrap;
+}
+.nca-msg.mine .bubble { background: #3a221d; border-color: #6b3128; }
+.nca-msg .bubble time { display: block; text-align: right; font-size: 9px; color: #8c8377; margin-top: 2px; }
+.nca-msg .bubble time .aloud {
+  float: left; background: #3a3117; color: #e6d6a0;
+  border-radius: 3px; padding: 0 4px; font-size: 9px; letter-spacing: .04em;
+}
+
+.nca-aloud-note {
+  flex: 0 0 auto; display: flex; align-items: flex-start; gap: 7px;
+  padding: 6px 10px; font-size: 11px; line-height: 1.35;
+  background: #2a2411; color: #e6d6a0; border-top: 1px solid #4a3f18;
+}
+.nca-aloud-note i { margin-top: 2px; }
+.nca-msg .bubble .from { display: block; font-size: 10px; color: #a08a7a; }
+
+.nca-app .nca-compose {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 8px; border-top: 1px solid #33231f; background: #1c1614;
+  flex: 0 0 auto;
+}
+.nca-app .nca-compose textarea {
+  flex: 1 1 auto; width: auto; min-width: 0;
+  min-height: 52px; max-height: 140px; resize: vertical;
+  background: #241b18; border: 1px solid #3b2a25; color: #d9d2c8;
+  border-radius: 4px; padding: 6px 9px; font-size: 13px; line-height: 1.35;
+}
+.nca-app .nca-compose textarea:focus {
+  outline: none; border-color: #c0392b; box-shadow: 0 0 4px rgba(192, 57, 43, .5);
+}
+.nca-app .nca-compose button {
+  background: #c0392b; border: 1px solid #8c2a20; color: #fff;
+  border-radius: 4px; padding: 5px 12px; cursor: pointer;
+  font-size: 12px; height: 30px;
+}
+.nca-app .nca-compose button:hover { background: #d8483a; border-color: #c0392b; }
+
+/* ------------------------------------------------------------- пульт мастера */
+
+.nca-gmpanel { overflow-y: auto; padding: 10px; gap: 14px; }
+.nca-block h3 { color: #e0d7cb; border-bottom: 1px solid #3b2a25; margin: 0 0 6px; }
+.nca-newrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.nca-newrow input[type="text"], .nca-newrow select {
+  background: #241b18; border: 1px solid #3b2a25; color: #d9d2c8; border-radius: 3px; padding: 2px 6px;
+}
+.nca-app .nca-newrow button {
+  width: auto; background: #c0392b; border: 1px solid #8c2a20; color: #fff;
+  border-radius: 3px; padding: 4px 12px; cursor: pointer;
+}
+.nca-check { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+.nca-app .nca-new-num {
+  width: 200px; font-variant-numeric: tabular-nums; letter-spacing: .04em;
+}
+.nca-app .nca-new-label { width: 190px; }
+
+table.nca-devices { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.nca-devices th { text-align: left; color: #a09587; border-bottom: 1px solid #3b2a25; font-weight: 600; }
+table.nca-devices td { border-bottom: 1px solid #241b18; padding: 3px 4px; vertical-align: middle; }
+table.nca-devices select, table.nca-devices input {
+  background: #241b18; border: 1px solid #3b2a25; color: #d9d2c8; border-radius: 3px; padding: 1px 4px; width: 100%;
+}
+table.nca-devices td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 10px; }
+.nca-who .num, .nca-contact .subnum { font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.nca-devices .acts { white-space: nowrap; }
+.nca-app table.nca-devices .acts button {
+  width: auto; background: #33201c; border: 1px solid #5a2f27; color: #e6ded3;
+  border-radius: 3px; cursor: pointer; padding: 3px 8px;
+}
+.tag { font-size: 10px; background: #4a1414; color: #ffd9d9; border-radius: 3px; padding: 0 4px; }
+
+.nca-watchrow { display: flex; gap: 10px; min-height: 200px; }
+.nca-threads { list-style: none; margin: 0; padding: 0; flex: 0 0 260px; overflow-y: auto; max-height: 300px; }
+.nca-app .nca button.nca-thread-pick {
+  display: block; width: 100%; text-align: left; background: transparent;
+  border: 0; border-bottom: 1px solid #241b18; border-radius: 0;
+  color: #cbc2b6; padding: 5px 6px; cursor: pointer; font-size: 12px;
+}
+.nca-thread-pick.on { background: #2c1d19; box-shadow: inset 3px 0 0 #c0392b; }
+.nca-thread-pick .row { display: flex; justify-content: space-between; gap: 6px; }
+.nca-thread-pick .cnt { color: #8c8377; }
+.nca-thread-pick .preview { display: block; font-size: 11px; color: #7d7468; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nca-watch { flex: 1 1 auto; overflow-y: auto; max-height: 300px; background: #191312; border: 1px solid #33231f; border-radius: 4px; padding: 8px; }
+
+/* --------------------------------------------------------- шапка со своим номером */
+
+.nca-top {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; background: #1c1614;
+  border-bottom: 1px solid #33231f; flex: 0 0 auto;
+}
+
+.nca-mynum { display: flex; align-items: center; gap: 7px; }
+.nca-mynum .cap {
+  font-size: 9px; letter-spacing: .09em; text-transform: uppercase;
+  color: #8c8377; line-height: 1;
+}
+.nca-mynum b {
+  font-size: 19px; color: #f0554a; letter-spacing: .04em; line-height: 1;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.nca-app .nca-mynum button {
+  width: auto; background: transparent; border: 1px solid #3b2a25;
+  color: #a09587; border-radius: 3px; padding: 2px 6px; cursor: pointer;
+}
+.nca-app .nca-mynum button:hover { color: #fff; border-color: #c0392b; }
+
+.nca-devname { font-size: 11px; color: #8c8377; }
+.nca-top .nca-devbar { margin-left: auto; padding: 0; background: none; border: 0; }
+
+.nca-app .nca button.nca-helpbtn {
+  width: auto; margin-left: auto; background: transparent;
+  border: 1px solid #3b2a25; color: #a09587;
+  border-radius: 3px; padding: 3px 8px; cursor: pointer; font-size: 12px;
+}
+.nca-top .nca-devbar + .nca-helpbtn { margin-left: 0; }
+.nca-app .nca button.nca-helpbtn:hover { color: #fff; border-color: #c0392b; }
+
+.nca-ringpick { display: inline-flex; gap: 3px; align-items: center; }
+.nca-app .nca-ringpick button {
+  width: auto; background: transparent; border: 1px solid #3b2a25; color: #a09587;
+  border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 11px;
+  max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nca-app .nca-ringpick button:hover { color: #fff; border-color: #c0392b; }
+
+.nca-app .nca button.nca-mutebtn {
+  width: auto; margin-left: auto; background: #c0392b; border: 1px solid #8c2a20;
+  color: #fff; border-radius: 3px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+  animation: nca-pulse 1.1s ease-in-out infinite;
+}
+.nca-app .nca button.nca-mutebtn:hover { background: #d8483a; animation: none; }
+.nca-app .nca button.nca-mutebtn + .nca-helpbtn { margin-left: 0; }
+
+@keyframes nca-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, .7); }
+  50% { box-shadow: 0 0 0 5px rgba(192, 57, 43, 0); }
+}
+
+.nca-app .nca button.nca-linkbtn {
+  width: auto; margin-top: 8px; background: transparent; border: 1px solid #5a2f27;
+  color: #cbc2b6; border-radius: 3px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+
+/* -------------------------------------------------------------- новый контакт */
+
+.nca-sidehead { padding: 6px; border-bottom: 1px solid #241b18; }
+.nca-app .nca button.nca-addcontact {
+  width: 100%; background: #33201c; border: 1px solid #5a2f27; color: #e6ded3;
+  border-radius: 3px; padding: 5px 8px; cursor: pointer; font-size: 12px;
+}
+.nca-app .nca button.nca-addcontact:hover { background: #3f2620; border-color: #c0392b; }
+
+.nca-contact .subnum { display: block; font-size: 10px; color: #6f665b; }
+
+.nca-dialog { display: flex; flex-direction: column; gap: 8px; }
+.nca-dialog .hint { font-size: 12px; color: #7d7468; margin: 0; }
+.nca-dialog label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.nca-dialog input {
+  width: 100%; box-sizing: border-box;
+  font-size: 15px; padding: 5px 8px; letter-spacing: .06em;
+}
+.nca-dialog input[name="num"] { font-variant-numeric: tabular-nums; }
+
+/* -------------------------------------------------------- шапка переписки */
+
+.nca-who { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.nca-who .cap {
+  font-size: 9px; letter-spacing: .09em; text-transform: uppercase; color: #8c8377;
+}
+.nca-who .num { font-size: 15px; color: #e6ded3; letter-spacing: .03em; }
+.nca-who .asname { font-size: 11px; color: #a08a7a; }
+.nca-who .asname.unknown { color: #6f665b; font-style: italic; }
+
+/* --------------------------------------------------------------- рингтоны */
+
+.nca-ringcell { display: flex; gap: 3px; align-items: center; }
+.nca-ringcell input { flex: 1 1 auto; min-width: 60px; }
+.nca-app .nca-ringcell button {
+  width: auto; flex: 0 0 auto; background: #33201c; border: 1px solid #5a2f27;
+  color: #e6ded3; border-radius: 3px; padding: 3px 7px; cursor: pointer;
+}
+
+.nca-gmtop { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+
+/* ---------------------------------------------------------------- справка */
+
+.nca-help { }
+.nca-tabs {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; background: #1c1614; border-bottom: 1px solid #33231f; flex: 0 0 auto;
+}
+.nca-app .nca button.nca-tab {
+  width: auto; background: #241b18; border: 1px solid #3b2a25; color: #cbc2b6;
+  border-radius: 3px; padding: 4px 12px; cursor: pointer; font-size: 12px;
+}
+.nca-app .nca button.nca-tab.on { background: #33201c; border-color: #c0392b; color: #fff; }
+.nca-tabs .nca-ver { margin-left: auto; font-size: 11px; color: #7d7468; }
+
+.nca-help-body { flex: 1 1 auto; overflow-y: auto; padding: 12px 16px; min-height: 0; }
+.nca-help-body h2 { color: #f0554a; border-bottom: 1px solid #3b2a25; margin: 0 0 10px; }
+.nca-help-body h3 { color: #e0d7cb; margin: 16px 0 6px; }
+.nca-help-body p { font-size: 13px; line-height: 1.5; margin: 0 0 8px; color: #c3baae; }
+.nca-help-body b { color: #e6ded3; }
+
+.nca-release ul { list-style: none; margin: 0; padding: 0; }
+.nca-release li { font-size: 12px; line-height: 1.5; margin-bottom: 5px; color: #c3baae; }
+.nca-release h3 .date { font-size: 11px; color: #7d7468; font-weight: normal; }
+.nca-release .kind {
+  display: inline-block; min-width: 78px; text-align: center;
+  font-size: 10px; border-radius: 3px; padding: 1px 5px; margin-right: 5px;
+}
+.nca-release .kind.add { background: #1f3a24; color: #a7e0b5; }
+.nca-release .kind.fix { background: #4a1414; color: #ffd9d9; }
+.nca-release .kind.change { background: #3a3117; color: #e6d6a0; }
+
+/* ------------------------------------------------ деньги и экстренные службы */
+/* Ядро задаёт button { width: 100% }, поэтому ширину всегда возвращаем явно. */
+.nca-app .nca .nca-sosbtn,
+.nca-app .nca .nca-ebbtn {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: 1px solid var(--nca-line, #37474f);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nca-ink, #d7fbff);
+  cursor: pointer;
+}
+.nca-app .nca .nca-sosbtn:hover { border-color: #ff6f5e; color: #ff9d92; }
+.nca-app .nca .nca-ebbtn:hover  { border-color: #ffd54f; color: #ffe082; }
+
+/* ------------------------------------------------------- карточки в чате */
+/* Живут в журнале чата, а не внутри окна Агента — область имён отдельная. */
+.nca-card {
+  --nca-accent: #e64539;
+  border: 1px solid var(--nca-accent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, .35);
+  color: inherit;
+}
+.nca-card-kicker {
+  font-size: 11px;
+  letter-spacing: .08em;
+  opacity: .85;
+  color: var(--nca-accent);
+}
+.nca-card-title { font-weight: 700; margin: 2px 0 6px; }
+.nca-card-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  font-size: 13px;
+}
+.nca-card-grid span { opacity: .75; }
+.nca-card-body { margin: 4px 0; }
+.nca-card-note { margin-top: 6px; font-size: 12px; opacity: .8; }
+.nca-card-clock {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  opacity: .7;
+}
+.nca-card-clock-source { letter-spacing: .06em; }
+.nca-card button.nca-deposit {
+  width: auto;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--nca-accent);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.nca-card-network { --nca-accent: #4fc3f7; }
+.nca-card-eb { --nca-accent: #ffd54f; }

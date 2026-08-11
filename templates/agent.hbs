@@ -1,0 +1,137 @@
+<div class="nca">
+  {{#if noGM}}<div class="nca-warn">Нет сигнала: мастер не в игре.</div>{{/if}}
+
+  {{#if noDevice}}
+    <div class="nca-empty">
+      Устройства нет. Попросите мастера выдать агент.
+      <div><button type="button" class="nca-linkbtn" data-action="help">Открыть руководство</button></div>
+    </div>
+  {{else}}
+    <header class="nca-top">
+      <div class="nca-mynum">
+        <span class="cap">Мой номер</span>
+        <b>{{device.num}}</b>
+        <button type="button" data-action="copyNum" title="Скопировать номер">
+          <i class="fa-regular fa-copy"></i>
+        </button>
+      </div>
+
+      {{#if manyDevices}}
+        <div class="nca-devbar">
+          {{#each devices}}
+            <button type="button" class="nca-dev{{#if selected}} on{{/if}}"
+                    data-action="pickDevice" data-num="{{num}}">
+              <b>{{num}}</b><span>{{label}}</span>
+            </button>
+          {{/each}}
+        </div>
+      {{else}}
+        <span class="nca-devname">{{device.label}}</span>
+      {{/if}}
+
+      <span class="nca-ringpick">
+        <button type="button" data-action="pickRingtone" title="Выбрать рингтон этому агенту">
+          <i class="fa-solid fa-music"></i>
+          {{#if hasOwnRingtone}}{{ringtoneName}}{{else}}рингтон{{/if}}
+        </button>
+        {{#if hasOwnRingtone}}
+          <button type="button" data-action="resetRingtone" title="Вернуть общий рингтон">
+            <i class="fa-solid fa-rotate-left"></i>
+          </button>
+        {{/if}}
+      </span>
+
+      {{#if ringing}}
+        <button type="button" class="nca-mutebtn" data-action="mute" title="Заглушить звонок">
+          <i class="fa-solid fa-bell-slash"></i> Звонит — заглушить
+        </button>
+      {{/if}}
+
+      <button type="button" class="nca-sosbtn" data-action="emergency"
+              title="Вызвать «мясовозку» или «Травма Тим»">
+        <i class="fa-solid fa-truck-medical"></i> Службы
+      </button>
+
+      <button type="button" class="nca-helpbtn" data-action="help" title="Руководство и история версий">
+        <i class="fa-solid fa-circle-question"></i>
+      </button>
+    </header>
+
+    <div class="nca-body">
+      <aside class="nca-side">
+        <div class="nca-sidehead">
+          <button type="button" class="nca-addcontact" data-action="newContact">
+            <i class="fa-solid fa-user-plus"></i> Новый контакт
+          </button>
+        </div>
+
+        <ul class="nca-contacts">
+          {{#each contacts}}
+            <li>
+              <button type="button" class="nca-contact{{#if selected}} on{{/if}}"
+                      data-action="pickContact" data-num="{{num}}">
+                <span class="row">
+                  <span class="name{{#unless known}} unknown{{/unless}}">{{name}}</span>
+                  {{#if unread}}<span class="badge">{{unread}}</span>{{/if}}
+                </span>
+                {{#if known}}<span class="subnum">{{num}}</span>{{/if}}
+                <span class="preview">{{preview}}</span>
+              </button>
+            </li>
+          {{else}}
+            <li class="nca-empty small">Контактов нет.<br />Нажмите «Новый контакт».</li>
+          {{/each}}
+        </ul>
+      </aside>
+
+      <section class="nca-main">
+        {{#if active}}
+          <div class="nca-head">
+            <div class="nca-who">
+              <span class="cap">Собеседник</span>
+              <b class="num">{{active}}</b>
+              {{#if activeBookName}}
+                <span class="asname">в книге: {{activeBookName}}</span>
+              {{else}}
+                <span class="asname unknown">не записан в книге</span>
+              {{/if}}
+            </div>
+            <input class="nca-name" type="text" value="{{activeBookName}}" placeholder="Имя в книге…" />
+            <button type="button" data-action="saveName" title="Записать в адресную книгу">
+              Записать
+            </button>
+            <button type="button" class="nca-ebbtn" data-action="payEb"
+                    title="Перевести эдди этому собеседнику">
+              <i class="fa-solid fa-coins"></i> Эдди
+            </button>
+          </div>
+
+          <div class="nca-thread">
+            {{#each messages}}
+              <div class="nca-msg{{#if mine}} mine{{/if}}">
+                <div class="bubble">{{text}}<time>{{#if aloud}}<span class="aloud" title="Прозвучало вслух — рядом стоящие слышали">вслух</span>{{/if}}{{time}}</time></div>
+              </div>
+            {{else}}
+              <div class="nca-empty small">Переписки пока нет.</div>
+            {{/each}}
+          </div>
+
+          {{#if aloud}}
+            <div class="nca-aloud-note">
+              <i class="fa-solid fa-volume-high"></i>
+              Внутренний агент без хирона: он управляется голосом и всё проговаривает вслух.
+              Вы диктуете сообщения, а входящие агент зачитывает — рядом стоящие это слышат.
+            </div>
+          {{/if}}
+
+          <div class="nca-compose">
+            <textarea class="nca-input" rows="2" placeholder="Сообщение… (Enter — отправить, Shift+Enter — перенос строки)"></textarea>
+            <button type="button" data-action="send">Отправить</button>
+          </div>
+        {{else}}
+          <div class="nca-empty">Выберите собеседника слева или добавьте новый контакт.</div>
+        {{/if}}
+      </section>
+    </div>
+  {{/if}}
+</div>
