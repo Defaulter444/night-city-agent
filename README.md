@@ -21,7 +21,7 @@
 
 Ссылка на манифест:
 
-    https://github.com/ВАШ_АККАУНТ/night-city-agent/releases/latest/download/module.json
+    https://github.com/Defaulter444/night-city-agent/releases/latest/download/module.json
 
 Или распакуйте архив в `Data/modules/night-city-agent`.
 
