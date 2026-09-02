@@ -308,6 +308,23 @@ export function unreadCount(state, myNum, other) {
  * Список собеседников устройства: все, с кем есть переписка, плюс те,
  * кто записан в адресную книгу. Сортировка — свежие сверху.
  */
+/**
+ * Короткая строка последнего сообщения для списков.
+ *
+ * У картинки без подписи текста нет вовсе, и превью выходило пустым: в списке
+ * контактов и в перехвате у мастера строка молчала, хотя сообщение было. Здесь
+ * такое сообщение честно называет себя картинкой, а подпись, если она есть,
+ * идёт следом.
+ *
+ * @param {Object} msg - сообщение или undefined
+ * @returns {String}
+ */
+export function previewOf(msg) {
+  if (!msg) return "";
+  if (!msg.p) return msg.x ?? "";
+  return msg.x ? `[картинка] ${msg.x}` : "[картинка]";
+}
+
 export function contactsFor(state, myNum) {
   const dev = state.devices[myNum];
   if (!dev) return [];
@@ -326,7 +343,7 @@ export function contactsFor(state, myNum) {
       num: other,
       name: contactLabel(state, myNum, other),
       known: Boolean(bookName(state, myNum, other)),
-      preview: last ? last.x : "",
+      preview: previewOf(last),
       lastTs: last ? last.ts : 0,
       unread: unreadCount(state, myNum, other)
     };
@@ -338,6 +355,6 @@ export function allThreads(state) {
   return Object.entries(state.threads).map(([key, msgs]) => {
     const [a, b] = key.split("|");
     const last = msgs[msgs.length - 1];
-    return { key, a, b, count: msgs.length, lastTs: last ? last.ts : 0, preview: last ? last.x : "" };
+    return { key, a, b, count: msgs.length, lastTs: last ? last.ts : 0, preview: previewOf(last) };
   }).sort((x, y) => y.lastTs - x.lastTs);
 }

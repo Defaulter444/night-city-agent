@@ -412,4 +412,32 @@ test("список используемых картинок собираетс�
   assert.equal(M.usedImages(undefined).size, 0);
 });
 
+test("картинка не пропадает из превью списков", () => {
+  // Раньше превью брало текст сообщения как есть. У картинки без подписи текста
+  // нет вовсе, и строка в списке контактов и в перехвате у мастера молчала —
+  // сообщение было, а по списку этого было не понять.
+  assert.equal(M.previewOf(undefined), "");
+  assert.equal(M.previewOf({ x: "привет" }), "привет");
+  assert.equal(M.previewOf({ x: "", p: "worlds/w/night-city-agent/a.webp" }), "[картинка]");
+  assert.equal(M.previewOf({ x: "смотри", p: "worlds/w/night-city-agent/a.webp" }),
+    "[картинка] смотри");
+
+  const st = M.blankState();
+  const a = M.addDevice(st, {}, seeded(11)).num;
+  const b = M.addDevice(st, {}, seeded(12)).num;
+  M.pushMessage(st, a, b, "", 5, { img: "worlds/w/night-city-agent/a.webp" });
+
+  // Список контактов у владельца.
+  const contact = M.contactsFor(st, a).find(c => c.num === b);
+  assert.equal(contact.preview, "[картинка]");
+
+  // Перехват у мастера.
+  const thread = M.allThreads(st)[0];
+  assert.equal(thread.preview, "[картинка]");
+
+  // Обычное сообщение поверх — превью снова текстовое.
+  M.pushMessage(st, b, a, "ага", 6);
+  assert.equal(M.allThreads(st)[0].preview, "ага");
+});
+
 console.log(`\n${passed} проверок пройдено`);

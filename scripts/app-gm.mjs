@@ -192,6 +192,18 @@ async function onSweepImages() {
   });
 }
 
+/** Открыть перехваченную картинку во весь экран. */
+async function onOpenImage(event, target) {
+  const src = target.dataset.src;
+  if (!src) return;
+  const Popout = foundry.applications?.apps?.ImagePopout ?? globalThis.ImagePopout;
+  if (!Popout) {
+    window.open(src, "_blank", "noopener");
+    return;
+  }
+  new Popout({ src, window: { title: "Перехват: вложение" } }).render(true);
+}
+
 export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(options = {}) {
     super(options);
@@ -211,6 +223,7 @@ export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
       remove: onRemove,
       open: onOpen,
       watch: onWatch,
+      openImage: onOpenImage,
       pickRingtone: onPickRingtone,
       playRingtone: onPlayRingtone,
       silence: onSilence,
@@ -249,9 +262,13 @@ export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
         a, b,
         aName: state.devices[a]?.label || a,
         bName: state.devices[b]?.label || b,
+        // Картинку мастер должен видеть так же, как её видят собеседники:
+        // перехват без вложений показывал пустое облачко и молчал о том, что
+        // вообще что-то передали.
         messages: M.thread(state, a, b).map(m => ({
           from: m.f,
           text: m.x,
+          image: m.p || "",
           time: hhmm(m.ts),
           left: m.f === a
         }))

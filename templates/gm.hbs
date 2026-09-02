@@ -103,7 +103,12 @@
           <div class="nca-head"><b>{{watching.a}}</b> ↔ <b>{{watching.b}}</b></div>
           {{#each watching.messages}}
             <div class="nca-msg{{#unless left}} mine{{/unless}}">
-              <div class="bubble"><span class="from">{{from}}</span>{{text}}<time>{{time}}</time></div>
+              <div class="bubble"><span class="from">{{from}}</span>
+                {{#if image}}
+                  <img class="nca-photo" src="{{image}}" alt="вложение"
+                       data-action="openImage" data-src="{{image}}"
+                       title="Открыть во весь экран" />
+                {{/if}}{{text}}<time>{{time}}</time></div>
             </div>
           {{/each}}
         {{else}}
