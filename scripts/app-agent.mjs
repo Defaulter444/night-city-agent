@@ -5,7 +5,8 @@
  */
 import { readState } from "./store.mjs";
 import * as M from "./model.mjs";
-import { sendMessage, setBook, markRead, setRingtone, UPDATE_HOOK } from "./socket.mjs";
+import { sendMessage, sendImage, setBook, markRead, setRingtone, UPDATE_HOOK } from "./socket.mjs";
+import { shrinkImage, MAX_BYTES } from "./images.mjs";
 import { browseFiles, canUploadFiles } from "./foundry-compat.mjs";
 import { openHelp } from "./help.mjs";
 import { setOpenThread, clearOpenThread } from "./presence.mjs";
@@ -85,6 +86,62 @@ async function onSend() {
     return;
   }
   this.render();
+}
+
+/**
+ * Отправка картинки. Файл выбирается обычным полем `input[type=file]`, а не
+ * обозревателем Foundry: у обычного игрока нет права ни просматривать файлы на
+ * сервере, ни загружать их туда. Здесь же картинка и сжимается — по сети и в
+ * папку мира уходит уже уменьшенная.
+ *
+ * Подпись берём из того же поля ввода: людям привычно набрать текст и приложить
+ * к нему картинку, а не наоборот.
+ */
+async function onSendImage() {
+  if (!this.num || !this.other) return;
+
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.accept = "image/png,image/jpeg,image/webp,image/gif";
+  picker.style.display = "none";
+  document.body.appendChild(picker);
+
+  const chosen = await new Promise(resolve => {
+    // `cancel` есть не во всех браузерах, поэтому подстраховываемся фокусом:
+    // окно выбора закрылось, файла нет — значит, передумали.
+    picker.addEventListener("change", () => resolve(picker.files?.[0] ?? null), { once: true });
+    picker.addEventListener("cancel", () => resolve(null), { once: true });
+    picker.click();
+  });
+  picker.remove();
+  if (!chosen) return;
+
+  const field = this.element.querySelector(".nca-input");
+  const caption = field?.value ?? "";
+
+  const notice = ui.notifications.info("Агент: картинка отправляется…", { permanent: true });
+  try {
+    const image = await shrinkImage(chosen, { maxBytes: MAX_BYTES });
+    await sendImage(this.num, this.other, image, caption);
+    if (field) field.value = "";
+  } catch (err) {
+    ui.notifications.error(`Агент: ${err.message}`);
+  } finally {
+    ui.notifications.remove?.(notice);
+  }
+  this.render();
+}
+
+/** Открыть присланную картинку во весь экран. */
+async function onOpenImage(event, target) {
+  const src = target.dataset.src;
+  if (!src) return;
+  const Popout = foundry.applications?.apps?.ImagePopout ?? globalThis.ImagePopout;
+  if (!Popout) {
+    window.open(src, "_blank", "noopener");
+    return;
+  }
+  new Popout({ src, window: { title: "Агент: вложение" } }).render(true);
 }
 
 /** Новый контакт: номер обязателен, имя можно не указывать. */
@@ -322,6 +379,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       pickDevice: onPickDevice,
       pickContact: onPickContact,
       send: onSend,
+      sendImage: onSendImage,
+      openImage: onOpenImage,
       newContact: onNewContact,
       saveName: onSaveName,
       copyNum: onCopyNum,
@@ -367,6 +426,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       ? M.thread(state, this.num, this.other).map(m => ({
           mine: m.f === this.num,
           text: m.x,
+          image: m.p || "",
           time: hhmm(m.ts),
           // «Вслух» — либо надиктовано с безхиронного аппарата, либо прочитано
           // вслух моим собственным: без хирона агент проговаривает всё.

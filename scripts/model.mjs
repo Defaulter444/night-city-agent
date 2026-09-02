@@ -192,17 +192,43 @@ export function thread(state, a, b) {
 }
 
 /**
- * @param extra  {eb} — сумма перевода, если сообщение сопровождает деньги.
+ * @param extra  {eb} — сумма перевода, если сообщение сопровождает деньги;
+ *               {img} — путь к присланной картинке.
+ *
+ * Картинка хранится путём, а не содержимым: состояние Агента лежит в настройке
+ * мира и целиком уходит каждому клиенту при каждом чтении. Пара снимков,
+ * вписанных туда строкой base64, раздули бы его на мегабайты — и так при каждом
+ * открытии окна у каждого игрока.
  */
 export function pushMessage(state, from, to, text, now = Date.now(), extra = {}) {
   const key = threadKey(from, to);
   const msg = { f: from, t: to, x: text, ts: now };
+  if (typeof extra.img === "string" && extra.img) msg.p = extra.img;
   // Надиктованное вслух помечаем навсегда: мастеру потом важно знать,
   // кто мог это услышать, а хирон персонажу могли поставить позже.
   if (speaksAloud(state.devices[from])) msg.a = 1;
   if (Number.isFinite(extra.eb) && extra.eb !== 0) msg.eb = Math.trunc(extra.eb);
   (state.threads[key] ??= []).push(msg);
   return msg;
+}
+
+/**
+ * Пути всех картинок, на которые ссылается хоть одно сообщение.
+ *
+ * Нужно для уборки: изъятое устройство уносит свои переписки, а файлы
+ * остаются на диске навсегда. Сверять по этому списку — единственный честный
+ * способ понять, что файл больше никому не нужен: одну и ту же картинку могли
+ * переслать в несколько переписок.
+ *
+ * @param {Object} state - состояние Агента
+ * @returns {Set<String>}
+ */
+export function usedImages(state) {
+  const used = new Set();
+  for (const msgs of Object.values(state?.threads ?? {})) {
+    for (const msg of msgs ?? []) if (msg?.p) used.add(msg.p);
+  }
+  return used;
 }
 
 /* ------------------------------------------------------------------- помехи */

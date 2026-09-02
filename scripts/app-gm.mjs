@@ -144,6 +144,54 @@ function onHelp() {
 
 /* ------------------------------------------------------------------- окно */
 
+/**
+ * Показать картинки, на которые больше никто не ссылается.
+ *
+ * Удалять модуль их не может: в Foundry 12 у клиента нет команды удаления
+ * файла — сервер принимает только просмотр, создание папки и настройку пути.
+ * Поэтому окно показывает список и путь к папке, а убирает мастер сам.
+ */
+async function onSweepImages() {
+  const { usedImages } = await import("./model.mjs");
+  const { findOrphanImages } = await import("./images.mjs");
+  const { getFilePicker } = await import("./foundry-compat.mjs");
+
+  const picker = getFilePicker();
+  if (!picker) {
+    ui.notifications.error("Агент: обозреватель файлов недоступен");
+    return;
+  }
+
+  let result;
+  try {
+    result = await findOrphanImages(usedImages(readState()), game.world.id, picker);
+  } catch (err) {
+    ui.notifications.error(`Агент: ${err.message}`);
+    return;
+  }
+
+  const list = result.orphans.length
+    ? `<ul class="nca-orphans">${result.orphans
+        .map(path => `<li>${path.split("/").pop()}</li>`)
+        .join("")}</ul>`
+    : "<p>Лишних вложений нет — на все картинки в папке ссылается хотя бы одна переписка.</p>";
+
+  await foundry.applications.api.DialogV2.prompt({
+    window: { title: "Неиспользуемые вложения" },
+    position: { width: 520 },
+    content: `
+      <div class="nca-dialog">
+        <p class="hint">Эти файлы остались от переписок, которых больше нет —
+        обычно от изъятых устройств. Удалить их отсюда нельзя: в Foundry 12 у
+        модулей нет команды удаления файла. Уберите вручную из папки
+        <code>${result.folder}</code>.</p>
+        ${list}
+        <p class="hint">Используется вложений: ${result.kept}.</p>
+      </div>`,
+    ok: { label: "Понятно" }
+  });
+}
+
 export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(options = {}) {
     super(options);
@@ -166,6 +214,7 @@ export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
       pickRingtone: onPickRingtone,
       playRingtone: onPlayRingtone,
       silence: onSilence,
+      sweepImages: onSweepImages,
       help: onHelp
     }
   };

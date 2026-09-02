@@ -418,3 +418,24 @@ table.nca-devices .acts { white-space: nowrap; }
 }
 .nca-card-network { --nca-accent: #4fc3f7; }
 .nca-card-eb { --nca-accent: #ffd54f; }
+
+/* Картинки в переписке.
+   Ширина ограничена облачком, высота — чтобы одно вложение не занимало весь
+   экран: смотреть целиком открывают щелчком. */
+.nca-photo {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  width: auto;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: zoom-in;
+  object-fit: contain;
+}
+
+/* Скрепка стоит между полем ввода и «Отправить» и не растягивается. */
+.nca-clip {
+  flex: 0 0 auto;
+  width: 2.2rem;
+  padding: 0;
+}

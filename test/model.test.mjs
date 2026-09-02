@@ -360,4 +360,56 @@ test("повторная порча идёт от исходника, а не о
   assert.equal(twice.x, "точка входа", "при доле 0 должен вернуться исходный текст");
 });
 
+test("картинка хранится путём, а не содержимым", () => {
+  const st = M.blankState();
+  const a = M.addDevice(st, {}, seeded(1)).num;
+  const b = M.addDevice(st, {}, seeded(2)).num;
+
+  const msg = M.pushMessage(st, a, b, "смотри", 1000, { img: "worlds/w/night-city-agent/a.webp" });
+  assert.equal(msg.p, "worlds/w/night-city-agent/a.webp");
+  // Содержимого в состоянии быть не должно: оно уходит каждому клиенту целиком.
+  assert.ok(!JSON.stringify(st).includes("base64"));
+
+  // Картинку можно послать и без подписи.
+  const bare = M.pushMessage(st, a, b, "", 1001, { img: "worlds/w/night-city-agent/b.webp" });
+  assert.equal(bare.x, "");
+  assert.equal(bare.p, "worlds/w/night-city-agent/b.webp");
+
+  // А обычное сообщение поля картинки не получает вовсе.
+  const plain = M.pushMessage(st, a, b, "просто текст", 1002);
+  assert.equal(plain.p, undefined);
+  // Пустая строка вместо пути — тоже не картинка.
+  assert.equal(M.pushMessage(st, a, b, "x", 1003, { img: "" }).p, undefined);
+
+  // Четыре: с подписью, без подписи, обычное и то, где путь пустой.
+  assert.equal(M.thread(st, a, b).length, 4);
+});
+
+test("список используемых картинок собирается по всем перепискам", () => {
+  const st = M.blankState();
+  const a = M.addDevice(st, {}, seeded(1)).num;
+  const b = M.addDevice(st, {}, seeded(2)).num;
+  const c = M.addDevice(st, {}, seeded(3)).num;
+
+  M.pushMessage(st, a, b, "", 1, { img: "worlds/w/night-city-agent/one.webp" });
+  M.pushMessage(st, a, b, "текст", 2);
+  // Одну и ту же картинку могли переслать дальше — она нужна обеим перепискам.
+  M.pushMessage(st, a, c, "", 3, { img: "worlds/w/night-city-agent/one.webp" });
+  M.pushMessage(st, b, c, "", 4, { img: "worlds/w/night-city-agent/two.png" });
+
+  const used = M.usedImages(st);
+  assert.equal(used.size, 2);
+  assert.ok(used.has("worlds/w/night-city-agent/one.webp"));
+  assert.ok(used.has("worlds/w/night-city-agent/two.png"));
+
+  // Изъятие устройства уносит его переписки — и картинка перестаёт быть нужной.
+  M.removeDevice(st, b);
+  const after = M.usedImages(st);
+  assert.ok(after.has("worlds/w/night-city-agent/one.webp"), "переписка a-c уцелела");
+  assert.ok(!after.has("worlds/w/night-city-agent/two.png"), "картинка из b-c осиротела");
+
+  assert.equal(M.usedImages(M.blankState()).size, 0);
+  assert.equal(M.usedImages(undefined).size, 0);
+});
+
 console.log(`\n${passed} проверок пройдено`);
