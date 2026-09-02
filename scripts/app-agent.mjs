@@ -476,6 +476,27 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (ev.key === "Enter") { ev.preventDefault(); onSaveName.call(this); }
     });
 
+    // Полоса устройств прокручивается обычным колесом, а не только
+    // Shift+колесом: полоска прокрутки тут в шесть пикселей, и целиться в неё
+    // мышью при двух десятках аппаратов — мучение.
+    const devbar = this.element.querySelector(".nca-devbar");
+    devbar?.addEventListener("wheel", ev => {
+      // Вертикального хода у полосы нет, поэтому вертикальное колесо здесь
+      // пропало бы впустую — обращаем его в горизонтальное. Если игрок и так
+      // крутит вбок (трекпад, наклон колеса), не мешаем.
+      if (ev.deltaY === 0 || ev.shiftKey) return;
+      if (devbar.scrollWidth <= devbar.clientWidth) return;
+      ev.preventDefault();
+      devbar.scrollLeft += ev.deltaY;
+    }, { passive: false });
+
+    // Выбранный аппарат виден, даже если он далеко в конце полосы: иначе
+    // после переключения непонятно, на каком номере ты сейчас.
+    devbar?.querySelector(".nca-dev.on")?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest"
+    });
+
     // Переписка всегда прокручена к свежему сообщению.
     const thread = this.element.querySelector(".nca-thread");
     if (thread) thread.scrollTop = thread.scrollHeight;

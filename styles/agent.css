@@ -246,7 +246,34 @@ table.nca-devices .acts { white-space: nowrap; }
 .nca-app .nca-mynum button:hover { color: #fff; border-color: #c0392b; }
 
 .nca-devname { font-size: 11px; color: #8c8377; }
-.nca-top .nca-devbar { margin-left: auto; padding: 0; background: none; border: 0; }
+/* Полоса устройств в шапке.
+   `overflow-x: auto` сам по себе тут не работал: у флекс-элемента `min-width`
+   по умолчанию равен `auto`, то есть он отказывается сжиматься мельче своего
+   содержимого. Полоса раздвигала шапку, упиралась в край окна и обрезалась —
+   без всякой прокрутки. Лечится явным `min-width: 0`.
+
+   У мастера аппаратов бывает несколько десятков, поэтому полосе отданы все
+   свободные пиксели строки, а полоску прокрутки делаем видимой: угадать, что
+   тут можно прокручивать, иначе неоткуда. */
+.nca-top .nca-devbar {
+  margin-left: auto;
+  padding: 0 0 4px;
+  background: none;
+  border: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  scrollbar-width: thin;
+  scrollbar-color: #5a3b34 transparent;
+  overscroll-behavior-x: contain;
+}
+
+.nca-top .nca-devbar::-webkit-scrollbar { height: 6px; }
+.nca-top .nca-devbar::-webkit-scrollbar-track { background: transparent; }
+.nca-top .nca-devbar::-webkit-scrollbar-thumb {
+  background: #5a3b34;
+  border-radius: 3px;
+}
+.nca-top .nca-devbar::-webkit-scrollbar-thumb:hover { background: #c0392b; }
 
 .nca-app .nca button.nca-helpbtn {
   width: auto; margin-left: auto; background: transparent;
