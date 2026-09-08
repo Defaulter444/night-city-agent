@@ -7,6 +7,7 @@
  * нагрузки нельзя, поэтому на него можно опираться при проверке прав.
  */
 import { MODULE_ID, readState, mutate, defaultRingtone } from "./store.mjs";
+import { handleWealth, handleTransfer } from "./wealth.mjs";
 import * as M from "./model.mjs";
 import * as Img from "./images.mjs";
 import { getFilePicker } from "./foundry-compat.mjs";
@@ -15,9 +16,18 @@ export const UPDATE_HOOK = "nightCityAgentUpdate";
 
 let socket = null;
 
+// socketlib replaces thrown remote errors with generic English text. Preserve
+// expected ledger failures so the player's window can explain the rejection.
+async function ledgerResult(task) {
+  try { return { ok: true, value: await task() }; }
+  catch (error) { return { ok: false, message: error?.message || "Не удалось выполнить операцию со счётом" }; }
+}
+
 export function registerSocket() {
   socket = globalThis.socketlib.registerModule(MODULE_ID);
   socket.register("send", gmSend);
+  socket.register("adjustWealth", function(data) { return ledgerResult(() => handleWealth(data, this.socketdata.userId)); });
+  socket.register("transferWealth", function(data) { return ledgerResult(() => handleTransfer(data, this.socketdata.userId)); });
   socket.register("sendImage", gmSendImage);
   socket.register("setBook", gmSetBook);
   socket.register("markRead", gmMarkRead);

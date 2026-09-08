@@ -14,7 +14,32 @@ import { MODULE_ID } from "./store.mjs";
 import { now, clockHTML, clockFlag, esc } from "./clock.mjs";
 
 const RECEIPTS = "transactionReceipts";
-const MAX_RECEIPTS = 250;
+// GM serializes all Agent ledger changes, including service fees and deposits.
+let ledgerQueue = Promise.resolve();
+function serial(task) {
+  const job = ledgerQueue.then(task, task);
+  ledgerQueue = job.catch(() => {});
+  return job;
+}
+async function remote(operation, data) {
+  const { getSocket } = await import("./socket.mjs");
+  if (!game.users.activeGM) throw new Error("Для операции со счётом мастер должен быть в игре");
+  const result = await getSocket().executeAsGM(operation, data);
+  if (result?.ok !== true) throw new Error(result?.message || "Не удалось выполнить операцию со счётом");
+  return result.value;
+}
+export async function handleWealth({ actorUuid, delta, reason, receiptId }, callerId) {
+  const actor = await fromUuid(actorUuid);
+  const caller = game.users.get(callerId);
+  if (!caller || (!caller.isGM && !actor?.testUserPermission(caller, "OWNER"))) throw new Error("Это не ваш счёт");
+  return serial(() => adjustLocal(actor, delta, reason, receiptId));
+}
+export async function handleTransfer({ fromUuid: source, toUuid, amount, note }, callerId) {
+  const fromActor = await fromUuid(source), toActor = await fromUuid(toUuid);
+  const caller = game.users.get(callerId);
+  if (!caller || (!caller.isGM && !fromActor?.testUserPermission(caller, "OWNER"))) throw new Error("Это не ваш счёт");
+  return serial(() => transferLocal(fromActor, toActor, amount, note, caller));
+}
 
 export function hasLedger(actor) {
   return Number.isFinite(Number(actor?.system?.wealth?.value));
@@ -48,13 +73,18 @@ export function actorForUser(userId) {
  * Возвращает false, если операция с такой распиской уже проведена.
  */
 export async function adjustRaw(actor, delta, reason = "Перевод через Агента", receiptId = null) {
+  if (!game.user.isGM) return remote("adjustWealth", { actorUuid: actor.uuid, delta, reason, receiptId });
+  return serial(() => adjustLocal(actor, delta, reason, receiptId));
+}
+async function adjustLocal(actor, delta, reason, receiptId) {
   if (!hasLedger(actor)) throw new Error(`У «${actor?.name ?? "актёра"}» нет счёта Cyberpunk RED`);
 
   if (receiptId && foundry.utils.getProperty(actor, `flags.${MODULE_ID}.${RECEIPTS}.${receiptId}`)) return false;
 
   const wealth = foundry.utils.deepClone(actor.system.wealth ?? {});
   const before = Number(wealth.value ?? 0) || 0;
-  const change = Math.trunc(Number(delta) || 0);
+  if (!Number.isFinite(Number(delta))) throw new Error("Некорректная сумма");
+  const change = Math.trunc(Number(delta));
   wealth.value = before + change;
   wealth.transactions ??= [];
   wealth.transactions.push([
@@ -66,9 +96,8 @@ export async function adjustRaw(actor, delta, reason = "Перевод чере�
   if (receiptId) {
     const receipts = foundry.utils.deepClone(foundry.utils.getProperty(actor, `flags.${MODULE_ID}.${RECEIPTS}`) ?? {});
     receipts[receiptId] = Date.now();
-    // Расписки копятся вечно, поэтому держим только свежие.
-    const recent = Object.entries(receipts).sort((a, b) => b[1] - a[1]).slice(0, MAX_RECEIPTS);
-    update[`flags.${MODULE_ID}.${RECEIPTS}`] = Object.fromEntries(recent);
+    // Old chat cards remain actionable: never expire their idempotency keys.
+    update[`flags.${MODULE_ID}.${RECEIPTS}`] = receipts;
   }
 
   await actor.update(update);
@@ -110,18 +139,34 @@ export async function adjust(actor, delta, reason = "Перевод через �
  * (он свой лист держит), получателю — по правилам выше.
  */
 export async function transfer(fromActor, toActor, amount, note = "") {
+  if (!fromActor || !toActor) throw new Error("Не найден отправитель или получатель перевода");
+  if (!game.user.isGM) return remote("transferWealth", { fromUuid: fromActor.uuid, toUuid: toActor.uuid, amount, note });
+  return serial(() => transferLocal(fromActor, toActor, amount, note, game.user));
+}
+async function transferLocal(fromActor, toActor, amount, note, caller) {
   const sum = Math.max(0, Math.trunc(Number(amount) || 0));
-  if (!sum) throw new Error("Сумма перевода должна быть больше нуля");
+  if (!Number.isFinite(sum) || !sum) throw new Error("Сумма перевода должна быть больше нуля");
   if (!fromActor || !toActor) throw new Error("Не найден отправитель или получатель перевода");
   if (fromActor.id === toActor.id) throw new Error("Перевод самому себе смысла не имеет");
   if (!hasLedger(fromActor)) throw new Error(`У «${fromActor.name}» нет счёта Cyberpunk RED`);
 
+  if (!hasLedger(toActor)) throw new Error(`У «${toActor.name}» нет счёта Cyberpunk RED`);
+  const direct = caller.isGM || toActor.testUserPermission(caller, "OWNER");
+  if (!direct && !game.users.players.some(u => toActor.testUserPermission(u, "OWNER")))
+    throw new Error("У получателя нет игрока-владельца, перевод доставить некому");
   const balance = Number(fromActor.system.wealth.value ?? 0) || 0;
   if (balance < sum) throw new Error(`На счету «${fromActor.name}» только ${balance} эдди`);
 
   const tail = note ? ` — ${note}` : "";
-  await adjustRaw(fromActor, -sum, `Перевод через Агента для «${toActor.name}»${tail}`, foundry.utils.randomID(24));
-  await adjust(toActor, +sum, `Перевод через Агента от «${fromActor.name}»${tail}`);
+  await adjustLocal(fromActor, -sum, `Перевод через Агента для «${toActor.name}»${tail}`, foundry.utils.randomID(24));
+  const reason = `Перевод через Агента от «${fromActor.name}»${tail}`;
+  try {
+    if (direct) await adjustLocal(toActor, sum, reason, foundry.utils.randomID(24));
+    else await requestDeposit(toActor, sum, reason);
+  } catch (error) {
+    await adjustLocal(fromActor, sum, "Возврат: перевод не доставлен", foundry.utils.randomID(24));
+    throw error;
+  }
   return sum;
 }
 

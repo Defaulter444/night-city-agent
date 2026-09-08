@@ -1,0 +1,3 @@
+
+# LevelDB control files must keep LF on Windows.
+packs/** -text
