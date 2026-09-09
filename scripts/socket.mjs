@@ -43,6 +43,19 @@ export function getSocket() {
 
 const MAX_TEXT = 2000;
 
+function requireDeviceOwner(state, num, callerId) {
+  const device = state.devices[num];
+  if (!device) throw new Error(`Устройство ${num} не найдено`);
+  const caller = game.users.get(callerId);
+  if (!caller || (!caller.isGM && device.owner !== callerId)) throw new Error("Это не ваше устройство");
+  return device;
+}
+
+function requireMessageRoute(state, from, to, callerId) {
+  requireDeviceOwner(state, from, callerId);
+  if (!state.devices[to]) throw new Error(`Номер ${to} не отвечает`);
+}
+
 /** Кому рассылать обновление: обе стороны переписки и все мастера. */
 function audienceFor(state, ...numbers) {
   const ids = new Set();
@@ -58,17 +71,13 @@ function audienceFor(state, ...numbers) {
 
 async function gmSend({ from, to, text }) {
   const callerId = this.socketdata.userId;
-  const caller = game.users.get(callerId);
   const clean = String(text ?? "").trim().slice(0, MAX_TEXT);
   if (!clean) throw new Error("Пустое сообщение");
 
-  const state = readState();
-  const sender = state.devices[from];
-  if (!sender) throw new Error(`Устройство ${from} не найдено`);
-  if (!state.devices[to]) throw new Error(`Номер ${to} не отвечает`);
-  if (!caller?.isGM && sender.owner !== callerId) throw new Error("Это не ваше устройство");
-
-  const msg = await mutate(s => M.pushMessage(s, from, to, clean));
+  const msg = await mutate(s => {
+    requireMessageRoute(s, from, to, callerId);
+    return M.pushMessage(s, from, to, clean);
+  });
 
   const fresh = readState();
   const ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
@@ -90,13 +99,7 @@ async function gmSend({ from, to, text }) {
  */
 async function gmSendImage({ from, to, image, text }) {
   const callerId = this.socketdata.userId;
-  const caller = game.users.get(callerId);
-
-  const state = readState();
-  const sender = state.devices[from];
-  if (!sender) throw new Error(`Устройство ${from} не найдено`);
-  if (!state.devices[to]) throw new Error(`Номер ${to} не отвечает`);
-  if (!caller?.isGM && sender.owner !== callerId) throw new Error("Это не ваше устройство");
+  requireMessageRoute(readState(), from, to, callerId);
 
   const issue = Img.imageIssue(image);
   if (issue) throw new Error(issue);
@@ -106,7 +109,11 @@ async function gmSendImage({ from, to, image, text }) {
   const path = await storeImage(folder, name, image);
 
   const clean = String(text ?? "").trim().slice(0, MAX_TEXT);
-  const msg = await mutate(s => M.pushMessage(s, from, to, clean, Date.now(), { img: path }));
+  const msg = await mutate(s => {
+    // The GM may transfer or remove an Agent while its upload is running.
+    requireMessageRoute(s, from, to, callerId);
+    return M.pushMessage(s, from, to, clean, Date.now(), { img: path });
+  });
 
   const fresh = readState();
   const ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
@@ -146,35 +153,28 @@ async function storeImage(folder, name, image) {
 
 async function gmSetBook({ myNum, other, name }) {
   const callerId = this.socketdata.userId;
-  const caller = game.users.get(callerId);
-  const state = readState();
-  if (!state.devices[myNum]) throw new Error(`Устройство ${myNum} не найдено`);
-  if (!caller?.isGM && state.devices[myNum].owner !== callerId) throw new Error("Это не ваше устройство");
-
-  await mutate(s => M.setBookName(s, myNum, other, name));
+  await mutate(s => {
+    requireDeviceOwner(s, myNum, callerId);
+    M.setBookName(s, myNum, other, name);
+  });
   socket.executeForUsers("refresh", audienceFor(readState(), myNum));
 }
 
 /** Игрок меняет рингтон своего устройства — мастер для этого не нужен. */
 async function gmSetRingtone({ myNum, path }) {
   const callerId = this.socketdata.userId;
-  const caller = game.users.get(callerId);
-  const state = readState();
-  if (!state.devices[myNum]) throw new Error(`Устройство ${myNum} не найдено`);
-  if (!caller?.isGM && state.devices[myNum].owner !== callerId) throw new Error("Это не ваше устройство");
-
-  await mutate(s => { s.devices[myNum].ringtone = String(path ?? "").trim(); });
+  await mutate(s => {
+    requireDeviceOwner(s, myNum, callerId).ringtone = String(path ?? "").trim();
+  });
   socket.executeForUsers("refresh", audienceFor(readState(), myNum));
 }
 
 async function gmMarkRead({ myNum, other }) {
   const callerId = this.socketdata.userId;
-  const caller = game.users.get(callerId);
-  const state = readState();
-  if (!state.devices[myNum]) return;
-  if (!caller?.isGM && state.devices[myNum].owner !== callerId) return;
-
-  await mutate(s => M.markRead(s, myNum, other));
+  await mutate(s => {
+    requireDeviceOwner(s, myNum, callerId);
+    M.markRead(s, myNum, other);
+  });
   socket.executeForUsers("refresh", audienceFor(readState(), myNum));
 }
 

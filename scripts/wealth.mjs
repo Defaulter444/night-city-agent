@@ -42,7 +42,9 @@ export async function handleTransfer({ fromUuid: source, toUuid, amount, note },
 }
 
 export function hasLedger(actor) {
-  return Number.isFinite(Number(actor?.system?.wealth?.value));
+  const value = actor?.system?.wealth?.value;
+  return (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+    && Number.isFinite(Number(value));
 }
 
 /**
@@ -63,9 +65,18 @@ export function actorForUser(userId) {
 
   // Листов несколько — уточняем выделенным токеном, но только своим.
   const selected = canvas.tokens?.controlled?.[0]?.actor ?? null;
-  if (selected && owned.some(a => a.id === selected.id)) return selected;
+  if (selected && owned.some(a => a.id === selected.id) && selected.testUserPermission(user, "OWNER")) return selected;
 
-  return owned[0] ?? null;
+  // Several owned sheets do not identify this device's wallet. The player
+  // must assign a character or select their intended token.
+  return null;
+}
+
+/** A selected NPC token is a fallback only for an unassigned GM device. */
+export function actorForDevice(device) {
+  if (!device) return null;
+  if (device.owner) return actorForUser(device.owner);
+  return game.user.isGM ? canvas.tokens?.controlled?.[0]?.actor ?? null : null;
 }
 
 /**

@@ -14,7 +14,7 @@ import { now, clockHTML, clockFlag, esc } from "./clock.mjs";
 import { adjustRaw, hasLedger } from "./wealth.mjs";
 
 export const REO_FEE = 5;
-export const REO_FREE_ABOVE = 800;   // корбук: при дорогом образе жизни вызов бесплатен
+export const REO_FREE_ABOVE = 800;   // Правило службы из интеграции Holophone; источник в RED не подтверждён.
 
 const norm = v => String(v ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -194,23 +194,35 @@ export async function callREO(actor, { skipLifestyle = false } = {}) {
   const coverage = membership ? `подписка «${membership.tier}»` : "без подписки, наличными";
   const formula = membership ? "1d6+2" : "1d6+3";
 
-  if (!waived) await adjustRaw(actor, -REO_FEE, "Вызов «мясовозки» через Агента", foundry.utils.randomID(24));
   const roll = await new Roll(formula).evaluate();
   const clock = now();
 
-  await ChatMessage.create({
-    content: serviceCard({
-      service: "R.E.O. Meatwagon Inc.",
-      actor, coverage, eta: roll.total, formula,
-      fee: waived ? `не берётся — образ жизни ${total} эдди/мес` : `${REO_FEE} эдди списано`,
-      note: "Доставка и лечение оплачиваются отдельно по условиям полиса.",
-      clock
-    }),
-    speaker: speakerFor(actor),
-    type: CONST.CHAT_MESSAGE_TYPES.ROLL,
-    rolls: [roll],
-    flags: { [MODULE_ID]: { emergency: { service: "reo", actorUuid: actor.uuid, waived }, clock: clockFlag(clock) } }
-  });
+  let charged = false;
+  try {
+    if (!waived) charged = await adjustRaw(actor, -REO_FEE, "Вызов «мясовозки» через Агента", foundry.utils.randomID(24));
+    await ChatMessage.create({
+      content: serviceCard({
+        service: "R.E.O. Meatwagon Inc.",
+        actor, coverage, eta: roll.total, formula,
+        fee: waived ? `не берётся — образ жизни ${total} эдди/мес` : `${REO_FEE} эдди списано`,
+        note: "Доставка и лечение оплачиваются отдельно по условиям полиса.",
+        clock
+      }),
+      speaker: speakerFor(actor),
+      type: CONST.CHAT_MESSAGE_TYPES.ROLL,
+      rolls: [roll],
+      flags: { [MODULE_ID]: { emergency: { service: "reo", actorUuid: actor.uuid, waived }, clock: clockFlag(clock) } }
+    });
+  } catch (error) {
+    if (charged) {
+      try {
+        await adjustRaw(actor, REO_FEE, "Возврат: вызов R.E.O. не оформлен", foundry.utils.randomID(24));
+      } catch (refundError) {
+        throw new Error(`Вызов R.E.O. не оформлен; возврат ${REO_FEE} эдди не выполнен. Мастеру нужно проверить счёт. ${refundError.message}`);
+      }
+    }
+    throw error;
+  }
   return roll.total;
 }
 

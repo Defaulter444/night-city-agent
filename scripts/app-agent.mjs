@@ -11,7 +11,7 @@ import { browseFiles, canUploadFiles } from "./foundry-compat.mjs";
 import { openHelp } from "./help.mjs";
 import { setOpenThread, clearOpenThread } from "./presence.mjs";
 import { ringKey, stopRing, stopRingsOn, ringingOn, RING_HOOK } from "./ringtone.mjs";
-import { transfer as transferEb, actorForUser } from "./wealth.mjs";
+import { transfer as transferEb, actorForDevice } from "./wealth.mjs";
 import { callREO, callTrauma, inspectLifestyle, findMembership } from "./services.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -203,10 +203,7 @@ function onHelp() {
  * владельца нет вовсе: там мастер и правда должен показать, о ком речь.
  */
 function actorOfDevice(num) {
-  const dev = readState().devices[num];
-  if (!dev) return null;
-  if (dev.owner) return actorForUser(dev.owner) ?? canvas.tokens?.controlled?.[0]?.actor ?? null;
-  return canvas.tokens?.controlled?.[0]?.actor ?? null;
+  return actorForDevice(readState().devices[num]);
 }
 
 /**
@@ -219,8 +216,8 @@ async function onPayEb() {
 
   const me = actorOfDevice(this.num);
   const them = actorOfDevice(this.other);
-  if (!me) return ui.notifications.warn("Агент: не понял, чей это счёт. Мастеру — выделите токен отправителя.");
-  if (!them) return ui.notifications.warn("Агент: у собеседника нет листа со счётом.");
+  if (!me) return ui.notifications.warn("Агент: не определён счёт отправителя. Назначьте персонажа в настройках пользователя или выделите его токен; для аппарата НИПа токен выбирает мастер.");
+  if (!them) return ui.notifications.warn("Агент: не определён счёт собеседника. Его владельцу нужно назначить персонажа в настройках пользователя; для аппарата НИПа токен выбирает мастер.");
 
   const result = await foundry.applications.api.DialogV2.prompt({
     window: { title: "Перевод эдди" },
@@ -243,13 +240,20 @@ async function onPayEb() {
   });
   if (!result?.sum) return;
 
+  let sum;
   try {
-    const sum = await transferEb(me, them, result.sum, result.note);
+    sum = await transferEb(me, them, result.sum, result.note);
+  } catch (err) {
+    ui.notifications.error(`Агент: ${err.message}`);
+    this.render();
+    return;
+  }
+  try {
     const tail = result.note ? ` — ${result.note}` : "";
     await sendMessage(this.num, this.other, `[перевод] ${sum} эдди${tail}`);
     ui.notifications.info(`Агент: переведено ${sum} эдди`);
   } catch (err) {
-    ui.notifications.error(`Агент: ${err.message}`);
+    ui.notifications.warn(`Агент: ${sum} эдди отправлено, но сообщение в переписку не доставлено. Повторять перевод не нужно. ${err.message}`);
   }
   this.render();
 }

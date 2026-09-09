@@ -7,6 +7,7 @@ import { blankState, normalize } from "./model.mjs";
 
 export const MODULE_ID = "night-city-agent";
 const KEY = "state";
+let mutationQueue = Promise.resolve();
 
 export function registerSettings() {
   game.settings.register(MODULE_ID, KEY, {
@@ -84,10 +85,18 @@ export async function writeState(state) {
  * значение — оно уйдёт вызывающему.
  */
 export async function mutate(fn) {
-  const state = readState();
-  const result = await fn(state);
-  await writeState(state);
-  return result;
+  const task = async () => {
+    if (!game.user.isGM) throw new Error("Состояние Агента пишет только мастер");
+    // A setting is a live cached object. Failed writes must not publish part
+    // of a mutation, and the next queued task must read the committed state.
+    const state = foundry.utils.deepClone(readState());
+    const result = await fn(state);
+    await writeState(state);
+    return result;
+  };
+  const pending = mutationQueue.then(task, task);
+  mutationQueue = pending.catch(() => {});
+  return pending;
 }
 
 export function defaultRingtone() {
