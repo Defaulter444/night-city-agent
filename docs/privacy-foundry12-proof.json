@@ -1,0 +1,16 @@
+{
+  "userId": "I83zoW9SQuCBWLHx",
+  "isGM": false,
+  "documentReadDenied": false,
+  "indexReadDenied": false,
+  "markerLeakedInDocument": true,
+  "markerLeakedInIndex": true,
+  "errors": [
+    null,
+    null
+  ],
+  "socketlibUnrequestedResultVisible": true,
+  "runId": "jz0MYKwHr6gEMSOo",
+  "scope": "Artificial data only; no real Agent ledger was read or modified",
+  "cleanup": true
+}
