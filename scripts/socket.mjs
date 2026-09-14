@@ -6,7 +6,9 @@
  * Значение проставляет принимающая сторона, подделать его из полезной
  * нагрузки нельзя, поэтому на него можно опираться при проверке прав.
  */
-import { MODULE_ID, readState, mutate, defaultRingtone } from "./store.mjs";
+import { MODULE_ID, readState, mutate, defaultRingtone, stateForUser, acceptProjection, protectedStorage, initializeStorage } from "./store.mjs";
+import { PrivateSocket } from './private-socket.mjs';
+import { runDocumentOperation } from './documents-service.mjs';
 import { handleWealth, handleTransfer } from "./wealth.mjs";
 import * as M from "./model.mjs";
 import * as Img from "./images.mjs";
@@ -24,7 +26,19 @@ async function ledgerResult(task) {
 }
 
 export function registerSocket() {
-  socket = globalThis.socketlib.registerModule(MODULE_ID);
+  if (socket) return socket;
+  socket = new PrivateSocket();
+  socket.register('snapshot', function() { return stateForUser(this.socketdata.userId); });
+  socket.register('documentOperation', async function(data) {
+    const result = await runDocumentOperation(data, this.socketdata.userId);
+    if (!(data.op === 'organize' && typeof data.draft === 'string')) await broadcastRefresh();
+    return result;
+  });
+  socket.register('terminalPush', async function(id) {
+    await refreshState();
+    const { openWorkspace } = await import('./workspace-app.mjs');
+    openWorkspace({ terminalId: id, tab: 'terminals' });
+  });
   socket.register("send", gmSend);
   socket.register("adjustWealth", function(data) { return ledgerResult(() => handleWealth(data, this.socketdata.userId)); });
   socket.register("transferWealth", function(data) { return ledgerResult(() => handleTransfer(data, this.socketdata.userId)); });
@@ -39,6 +53,12 @@ export function registerSocket() {
 
 export function getSocket() {
   return socket;
+}
+
+async function notifyUsers(name, ids, ...args) {
+  // The durable mutation has succeeded. A disconnected receiver must not make
+  // the sender retry a message or a money operation that already happened.
+  await Promise.allSettled(ids.map(id => socket.executeForUsers(name, [id], ...args)));
 }
 
 const MAX_TEXT = 2000;
@@ -81,7 +101,7 @@ async function gmSend({ from, to, text }) {
 
   const fresh = readState();
   const ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
-  socket.executeForUsers("deliver", audienceFor(fresh, from, to), { from, to, msg, ringtone });
+  await notifyUsers("deliver", audienceFor(fresh, from, to), { from, to, ringtone });
   return msg;
 }
 
@@ -106,7 +126,7 @@ async function gmSendImage({ from, to, image, text }) {
 
   const folder = Img.imageFolder(game.world.id);
   const name = Img.imageFileName(from, Img.parseDataUrl(image).type);
-  const path = await storeImage(folder, name, image);
+  const path = protectedStorage() ? image : await storeImage(folder, name, image);
 
   const clean = String(text ?? "").trim().slice(0, MAX_TEXT);
   const msg = await mutate(s => {
@@ -117,7 +137,7 @@ async function gmSendImage({ from, to, image, text }) {
 
   const fresh = readState();
   const ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
-  socket.executeForUsers("deliver", audienceFor(fresh, from, to), { from, to, msg, ringtone });
+  await notifyUsers("deliver", audienceFor(fresh, from, to), { from, to, ringtone });
   return msg;
 }
 
@@ -157,7 +177,7 @@ async function gmSetBook({ myNum, other, name }) {
     requireDeviceOwner(s, myNum, callerId);
     M.setBookName(s, myNum, other, name);
   });
-  socket.executeForUsers("refresh", audienceFor(readState(), myNum));
+  await notifyUsers("refresh", audienceFor(readState(), myNum));
 }
 
 /** Игрок меняет рингтон своего устройства — мастер для этого не нужен. */
@@ -166,7 +186,7 @@ async function gmSetRingtone({ myNum, path }) {
   await mutate(s => {
     requireDeviceOwner(s, myNum, callerId).ringtone = String(path ?? "").trim();
   });
-  socket.executeForUsers("refresh", audienceFor(readState(), myNum));
+  await notifyUsers("refresh", audienceFor(readState(), myNum));
 }
 
 async function gmMarkRead({ myNum, other }) {
@@ -175,12 +195,13 @@ async function gmMarkRead({ myNum, other }) {
     requireDeviceOwner(s, myNum, callerId);
     M.markRead(s, myNum, other);
   });
-  socket.executeForUsers("refresh", audienceFor(readState(), myNum));
+  await notifyUsers("refresh", audienceFor(readState(), myNum));
 }
 
 /* ------------------------------------------------- обработчики на клиентах */
 
 async function clientDeliver({ from, to, ringtone }) {
+  await refreshState();
   const state = readState();
   const mine = state.devices[to]?.owner === game.user.id;
 
@@ -200,8 +221,20 @@ async function clientDeliver({ from, to, ringtone }) {
   Hooks.callAll(UPDATE_HOOK);
 }
 
-function clientRefresh() {
+async function clientRefresh() {
+  await refreshState();
   Hooks.callAll(UPDATE_HOOK);
+}
+export async function refreshState() {
+  if (game.user.isGM) { if (protectedStorage()) await initializeStorage(); return; }
+  if (!socket || !game.users.activeGM) return;
+  acceptProjection(await socket.executeAsGM('snapshot'));
+}
+export async function documentOperation(op, data = {}) {
+  requireGM();
+  const result = await socket.executeAsGM('documentOperation', { op, ...data });
+  await refreshState();
+  return result;
 }
 
 /* --------------------------------------------------------- вызовы клиента */
@@ -247,7 +280,7 @@ export async function setRingtone(myNum, path) {
 export async function broadcastRefresh() {
   const state = readState();
   const ids = game.users.filter(u => u.active).map(u => u.id);
-  socket.executeForUsers("refresh", ids, {});
+  await notifyUsers("refresh", ids, {});
   Hooks.callAll(UPDATE_HOOK);
   return state;
 }

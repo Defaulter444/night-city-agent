@@ -20,6 +20,7 @@ export function blankState() {
 export function normalize(state) {
   const s = state && typeof state === "object" ? state : {};
   return {
+    ...s,
     v: 1,
     devices: s.devices ?? {},
     threads: s.threads ?? {},

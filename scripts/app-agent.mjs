@@ -3,9 +3,9 @@
  * Мастер видит в списке устройств все аппараты сразу и может писать от лица
  * любого НИПа, игрок — только свои.
  */
-import { readState } from "./store.mjs";
+import { readState, storageLocked } from "./store.mjs";
 import * as M from "./model.mjs";
-import { sendMessage, sendImage, setBook, markRead, setRingtone, UPDATE_HOOK } from "./socket.mjs";
+import { sendMessage, sendImage, setBook, markRead, setRingtone, documentOperation, refreshState, UPDATE_HOOK } from "./socket.mjs";
 import { shrinkImage, MAX_BYTES } from "./images.mjs";
 import { browseFiles, canUploadFiles } from "./foundry-compat.mjs";
 import { openHelp } from "./help.mjs";
@@ -14,6 +14,8 @@ import { ringKey, stopRing, stopRingsOn, ringingOn, RING_HOOK } from "./ringtone
 import { transfer as transferEb, actorForDevice } from "./wealth.mjs";
 import { callREO, callTrauma, inspectLifestyle, findMembership } from "./services.mjs";
 
+import { openWorkspace, inputDialog } from './workspace-app.mjs';
+import { esc } from './clock.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 function hhmm(ts) {
@@ -52,12 +54,15 @@ function legacyCopy(text) {
 /* --------------------------------------------------------------- действия */
 
 async function onPickDevice(event, target) {
+  await this.saveDraft();
+  clearOpenThread(this.num);
   this.num = target.dataset.num;
   this.other = null;
   this.render();
 }
 
 async function onPickContact(event, target) {
+  await this.saveDraft();
   this.other = target.dataset.num;
   if (this.num && this.other) {
     // Прочитано — значит, звонок смолкает.
@@ -74,18 +79,20 @@ async function onMute() {
 }
 
 async function onSend() {
-  const field = this.element.querySelector(".nca-input");
-  const text = field?.value ?? "";
+  if (this.sending) return;
+  const field = this.element.querySelector('.nca-input'), text = field?.value ?? '';
   if (!text.trim() || !this.num || !this.other) return;
-  field.value = "";
+  this.sending = true;
+  const from = this.num, to = this.other, key = `${from}|${to}`;
   try {
-    await sendMessage(this.num, this.other, text);
-  } catch (err) {
-    ui.notifications.error(`Агент: ${err.message}`);
-    field.value = text;
-    return;
-  }
-  this.render();
+    await this.saveDraft();
+    await sendMessage(from, to, text);
+    if (this.drafts[key] === text) {
+      this.drafts[key] = '';
+      await documentOperation('organize', { number: from, other: to, draft: '' });
+    }
+  } catch (error) { ui.notifications.error(`Агент: ${error.message}`); }
+  finally { this.sending = false; this.render(); }
 }
 
 /**
@@ -123,7 +130,9 @@ async function onSendImage() {
   try {
     const image = await shrinkImage(chosen, { maxBytes: MAX_BYTES });
     await sendImage(this.num, this.other, image, caption);
-    if (field) field.value = "";
+    if (field) field.value = '';
+    this.drafts[`${this.num}|${this.other}`] = '';
+    await this.saveDraft();
   } catch (err) {
     ui.notifications.error(`Агент: ${err.message}`);
   } finally {
@@ -136,12 +145,12 @@ async function onSendImage() {
 async function onOpenImage(event, target) {
   const src = target.dataset.src;
   if (!src) return;
-  const Popout = foundry.applications?.apps?.ImagePopout ?? globalThis.ImagePopout;
+  const Popout = typeof ImagePopout !== 'undefined' ? ImagePopout : foundry.applications?.apps?.ImagePopout;
   if (!Popout) {
     window.open(src, "_blank", "noopener");
     return;
   }
-  new Popout({ src, window: { title: "Агент: вложение" } }).render(true);
+  new Popout(src, { title: "Агент: вложение", shareable: false }).render(true);
 }
 
 /** Новый контакт: номер обязателен, имя можно не указывать. */
@@ -224,7 +233,7 @@ async function onPayEb() {
     position: { width: 460 },
     content: `
       <div class="nca-dialog">
-        <p class="hint">Со счёта «${me.name}» на счёт «${them.name}». Запись появится в журнале обоих.</p>
+        <p class="hint">Со счёта «${esc(me.name)}» на счёт «${esc(them.name)}». Запись появится в журнале обоих.</p>
         <label>Сумма, эдди<input type="number" name="sum" min="1" step="1" value="100" autofocus /></label>
         <label>За что<input type="text" name="note" placeholder="например, за работу в Уотсоне" /></label>
       </div>`,
@@ -274,7 +283,7 @@ async function onEmergency() {
     classes: ["nca-dialog-app"],
     content: `
       <div class="nca-dialog">
-        <p class="hint">Вызывает: <b>${actor.name}</b>. Еда и жильё: ${life.totalMonthly} эдди/мес
+        <p class="hint">Вызывает: <b>${esc(actor.name)}</b>. Еда и жильё: ${life.totalMonthly} эдди/мес
         ${life.totalMonthly > 800 ? "— вызов «мясовозки» бесплатный" : `— вызов «мясовозки» стоит 5 эдди`}.</p>
         <p class="hint">R.E.O.: ${reo ? `подписка «${reo.tier}»` : "подписки нет, поедут медленнее"}.<br>
         Травма Тим: ${trauma ? `подписка «${trauma.tier}»` : "подписки нет, вызов недоступен"}.</p>
@@ -354,18 +363,51 @@ async function onSaveName() {
   this.render();
 }
 
+async function modernAction(event, target) {
+  try {
+    const state = storageLocked() ? null : readState();
+    switch (target.dataset.action) {
+      case 'files': await this.saveDraft(); openWorkspace({ number: this.num, tab: 'files' }); return;
+      case 'data': openWorkspace({ tab: 'storage' }); return;
+      case 'openDocument': openWorkspace({ number: this.num, documentId: target.dataset.id, tab: 'files' }); return;
+      case 'pin': await documentOperation('organize', { number: this.num, other: this.other, pin: Number(target.dataset.index) }); break;
+      case 'pins': this.onlyPins = !this.onlyPins; break;
+      case 'tags': await inputDialog('Метки контакта', `<label>До шести меток через запятую<input name="tags" value="${esc((state.organizer?.[this.num]?.tags?.[this.other] ?? []).join(', '))}"></label>`,
+        fd => documentOperation('organize', { number: this.num, other: this.other, tags: fd.get('tags').split(',') })); break;
+      case 'shareContact': {
+        const book = state.devices[this.num]?.book ?? {};
+        await inputDialog('Поделиться контактом', `<label>Контакт<select name="contact">${Object.entries(book).map(([num, name]) => `<option value="${esc(num)}">${esc(name)} · ${esc(num)}</option>`).join('')}</select></label>`,
+          fd => documentOperation('shareContact', { from: this.num, to: this.other, contact: fd.get('contact') })); break;
+      }
+      case 'acceptContact': await documentOperation('acceptContact', { number: this.num, other: this.other, index: Number(target.dataset.index) }); ui.notifications.info('Контакт добавлен в вашу книгу'); break;
+    }
+    this.render();
+  } catch (error) { ui.notifications.error(`Агент: ${error.message}`); }
+}
+
 /* ------------------------------------------------------------------- окно */
 
 export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(options = {}) {
+    const { num = null, other = null } = options;
     super(options);
-    this.num = options.num ?? null;
-    this.other = options.other ?? null;
+    this.num = num;
+    this.other = other;
     this.closing = false;
+    this.drafts = {}; this.search = ''; this.onlyPins = false;
     // Перерисовка и закрытие стоят в одной очереди (семафор ApplicationV2).
     // Без флага перерисовка, поставленная в очередь во время закрытия,
     // открывала окно обратно — и закрыть его было нельзя.
-    this._onUpdate = () => { if (this.rendered && !this.closing) this.render(); };
+    this._onUpdate = () => {
+      if (!this.rendered || this.closing) return;
+      const focused = document.activeElement;
+      if (this.element.contains(focused) && (focused.matches('.nca-input') || focused.matches('.nca-search'))) {
+        this._restoreFocus = { selector: focused.matches('.nca-input') ? '.nca-input' : '.nca-search', start: focused.selectionStart, end: focused.selectionEnd };
+      }
+      const thread = this.element.querySelector('.nca-thread');
+      if (thread && thread.scrollHeight - thread.clientHeight - thread.scrollTop > 30) this._restoreScroll = thread.scrollTop;
+      this.render();
+    };
     this._onRing = this._onUpdate;
   }
 
@@ -378,8 +420,9 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       icon: "fa-solid fa-mobile-screen-button",
       resizable: true
     },
-    position: { width: 760, height: 580 },
+    position: { width: 920, height: 650 },
     actions: {
+      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact'].map(n => [n,modernAction])),
       pickDevice: onPickDevice,
       pickContact: onPickContact,
       send: onSend,
@@ -399,12 +442,14 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static PARTS = {
     body: {
-      template: "modules/night-city-agent/templates/agent.hbs",
+      template: "modules/night-city-agent/templates/agent-modern.hbs",
       scrollable: [".nca-contacts", ".nca-thread"]
     }
   };
 
   async _prepareContext() {
+    try { await refreshState(); } catch (error) { console.warn('Агент:',error.message); }
+    if (storageLocked()) return { locked: true, isGM: true };
     const state = readState();
     const isGM = game.user.isGM;
 
@@ -427,7 +472,9 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const aloud = M.speaksAloud(device);
     const messages = (this.num && this.other)
-      ? M.thread(state, this.num, this.other).map(m => ({
+      ? M.thread(state, this.num, this.other).map((m, index) => ({
+          index, documentId: m.documentId, documentTitle: state.documents?.[m.documentId]?.title || 'Файл', contact: m.contact,
+          pinned: (state.organizer?.[this.num]?.pins ?? []).includes(`${M.threadKey(this.num,this.other)}:${index}`),
           mine: m.f === this.num,
           text: m.x,
           image: m.p || "",
@@ -439,7 +486,9 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       : [];
 
     return {
-      isGM,
+      isGM, search: this.search, onlyPins: this.onlyPins,
+      draft: this.drafts[`${this.num}|${this.other}`] ?? state.organizer?.[this.num]?.drafts?.[this.other] ?? '',
+      tags: state.organizer?.[this.num]?.tags?.[this.other] ?? [],
       noDevice: !device,
       noGM: !game.users.activeGM,
       device: device ? {
@@ -456,7 +505,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
         label: d.label || (d.kind === M.KIND.INTERNAL ? "внутренний" : "агент"),
         selected: d.num === this.num
       })),
-      contacts: contacts.map(c => ({ ...c, selected: c.num === this.other })),
+      contacts: contacts.map(c => ({ ...c, selected: c.num === this.other, tags: state.organizer?.[this.num]?.tags?.[c.num] ?? [], searchText: [c.name,c.num,...(state.organizer?.[this.num]?.tags?.[c.num] ?? []),...M.thread(state,this.num,c.num).map(m => m.x)].join(' ') })),
       active: this.other,
       activeName: this.other ? M.contactLabel(state, this.num, this.other) : "",
       activeBookName: this.other ? M.bookName(state, this.num, this.other) : "",
@@ -464,11 +513,34 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
+  async saveDraft() {
+    clearTimeout(this.draftTimer);
+    if (!this.num || !this.other || storageLocked()) return;
+    const key = `${this.num}|${this.other}`;
+    const value = this.drafts[key];
+    if (value === undefined || value === readState().organizer?.[this.num]?.drafts?.[this.other]) return;
+    await documentOperation('organize', { number: this.num, other: this.other, draft: value });
+  }
+
   _onRender(context, options) {
     super._onRender?.(context, options);
 
+    const search = this.element.querySelector('.nca-search');
+    const filter = () => {
+      const q = this.search.trim().toLocaleLowerCase('ru-RU');
+      for (const el of this.element.querySelectorAll('[data-search]')) el.hidden = !el.dataset.search.toLocaleLowerCase('ru-RU').includes(q);
+      for (const el of this.element.querySelectorAll('.nca-msg')) if (this.onlyPins && el.dataset.pinned !== 'true') el.hidden = true;
+    };
+    search?.addEventListener('input', () => { this.search = search.value; filter(); });
+    filter();
     // Enter отправляет, Shift+Enter — перенос строки.
     const input = this.element.querySelector(".nca-input");
+    if (input && this.num && this.other) this.drafts[`${this.num}|${this.other}`] = input.value;
+    input?.addEventListener('input', () => {
+      this.drafts[`${this.num}|${this.other}`] = input.value;
+      clearTimeout(this.draftTimer);
+      this.draftTimer = setTimeout(() => this.saveDraft().catch(e => ui.notifications.warn(`Черновик пока не сохранён: ${e.message}`)), 900);
+    });
     input?.addEventListener("keydown", ev => {
       if (ev.key === "Enter" && !ev.shiftKey) {
         ev.preventDefault();
@@ -503,12 +575,24 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Переписка всегда прокручена к свежему сообщению.
     const thread = this.element.querySelector(".nca-thread");
-    if (thread) thread.scrollTop = thread.scrollHeight;
+    if (thread) thread.scrollTop = this._restoreScroll ?? thread.scrollHeight;
+    this._restoreScroll = null;
+    if (this._restoreFocus) {
+      const { selector, start, end } = this._restoreFocus;
+      const field = this.element.querySelector(selector);
+      field?.focus(); field?.setSelectionRange(start,end); this._restoreFocus = null;
+    }
 
     // Сообщаем доставке, на какую переписку игрок сейчас смотрит:
     // пришедшее в неё сообщение не звонит и сразу считается прочитанным.
     clearOpenThread(this.num);
-    if (this.num && this.other) setOpenThread(this.num, this.other);
+    if (this.num && this.other) {
+      setOpenThread(this.num, this.other);
+      if (!this._markingRead && M.unreadCount(readState(),this.num,this.other)>0 && game.users.activeGM) {
+        this._markingRead = true;
+        markRead(this.num,this.other).catch(error=>console.warn('Агент: отметка прочтения',error)).finally(()=>{this._markingRead=false;});
+      }
+    }
   }
 
   /* Подписка ставится и снимается ровно по одному разу за жизнь окна. */
@@ -521,6 +605,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async _preClose(options) {
     this.closing = true;
+    try { await this.saveDraft(); } catch (e) { this.closing = false; ui.notifications.error(`Черновик не сохранён: ${e.message}`); throw e; }
     Hooks.off(UPDATE_HOOK, this._onUpdate);
     Hooks.off(RING_HOOK, this._onRing);
     clearOpenThread(this.num);

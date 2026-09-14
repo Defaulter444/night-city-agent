@@ -3,7 +3,8 @@
  * Мастер заводит аппараты, раздаёт их игрокам, забирает обратно и читает
  * любую переписку.
  */
-import { readState, mutate } from "./store.mjs";
+import { readState, mutate, storageLocked } from "./store.mjs";
+import { openWorkspace } from './workspace-app.mjs';
 import * as M from "./model.mjs";
 import { broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
 import { openAgent } from "./app-agent.mjs";
@@ -196,12 +197,12 @@ async function onSweepImages() {
 async function onOpenImage(event, target) {
   const src = target.dataset.src;
   if (!src) return;
-  const Popout = foundry.applications?.apps?.ImagePopout ?? globalThis.ImagePopout;
+  const Popout = typeof ImagePopout !== 'undefined' ? ImagePopout : foundry.applications?.apps?.ImagePopout;
   if (!Popout) {
     window.open(src, "_blank", "noopener");
     return;
   }
-  new Popout({ src, window: { title: "Перехват: вложение" } }).render(true);
+  new Popout(src, { title: 'Перехват: вложение', shareable: false }).render(true);
 }
 
 export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -324,6 +325,7 @@ export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
 let instance = null;
 
 export function openGMPanel() {
+  if (storageLocked()) return openWorkspace({ tab: 'storage' });
   if (instance?.rendered) {
     instance.bringToFront();
     return instance;

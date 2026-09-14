@@ -30,13 +30,13 @@ globalThis.ChatMessage = { getSpeaker: () => ({}), create: async data => {
   if (failMessage) throw Error("chat failed"); messages.push(data); return data;
 } };
 globalThis.ui = { notifications: Object.fromEntries(["warn", "info", "error"].map(kind => [kind, text => notifications.push({ kind, text })])) };
-const handlers = new Map();
-globalThis.socketlib = { registerModule: () => ({
-  register: (name, handler) => handlers.set(name, handler),
-  executeForUsers: async () => {},
-  executeAsGM: async () => { throw Error("signal lost"); }
-}) };
-registerSocket();
+game.socket = { on() {}, emit() {} };
+const socket = registerSocket();
+const handlers = socket.handlers;
+socket.executeForUsers = async () => {};
+// This scenario deliberately fails the notification after money has moved.
+const request = socket.executeAsGM.bind(socket);
+socket.executeAsGM = async (name, ...args) => { if (name === 'send') throw Error('signal lost'); return request(name,...args); };
 const { AgentApp } = await import("../scripts/app-agent.mjs");
 function actor(name, value = 100, owners = ["player"]) {
   const a = { name, id: name, uuid: `Actor.${name}`, type: "character", items: [], flags: {}, system: { wealth: { value, transactions: [] } },

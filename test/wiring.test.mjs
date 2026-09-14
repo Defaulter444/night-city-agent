@@ -24,8 +24,9 @@ function test(name, fn) {
 /** Имена действий из блока `actions: { ... }` в файле окна. */
 function registeredActions(src) {
   const block = src.match(/actions:\s*\{([^}]*)\}/s);
-  if (!block) return new Set();
-  return new Set([...block[1].matchAll(/(\w+)\s*:/g)].map(m => m[1]));
+  const names = new Set([...(block?.[1] ?? '').matchAll(/(\w+)\s*:/g)].map(m => m[1]));
+  for (const arr of src.matchAll(/Object\.fromEntries\(\[([^\]]+)\]\.map/g)) for (const name of arr[1].matchAll(/'([^']+)'/g)) names.add(name[1]);
+  return names;
 }
 
 /** Значения data-action из шаблона. */
@@ -50,9 +51,10 @@ test("история версий не содержит пустых запис�
 });
 
 const pairs = [
-  ["окно Агента", "scripts/app-agent.mjs", "templates/agent.hbs"],
+  ["окно Агента", "scripts/app-agent.mjs", "templates/agent-modern.hbs"],
   ["пульт мастера", "scripts/app-gm.mjs", "templates/gm.hbs"],
-  ["справка", "scripts/help.mjs", "templates/help.hbs"]
+  ["справка", "scripts/help.mjs", "templates/help.hbs"],
+  ["файлы и терминалы", "scripts/workspace-app.mjs", "templates/workspace.hbs"]
 ];
 
 for (const [label, script, template] of pairs) {
@@ -122,7 +124,7 @@ test("глобальные классы Foundry не берутся через g
 
 test("код не ищет селекторов, которых нет в разметке", () => {
   const checks = [
-    ["scripts/app-agent.mjs", "templates/agent.hbs"],
+    ["scripts/app-agent.mjs", "templates/agent-modern.hbs"],
     ["scripts/app-gm.mjs", "templates/gm.hbs"]
   ];
   for (const [script, template] of checks) {
@@ -174,7 +176,7 @@ test("вложения видны и в переписке, и в перехва
   // облачко там рисовалось только текстом. Оба окна должны показывать
   // вложение одинаково.
   for (const [где, шаблон, скрипт] of [
-    ["переписка", "templates/agent.hbs", "scripts/app-agent.mjs"],
+    ["переписка", "templates/agent-modern.hbs", "scripts/app-agent.mjs"],
     ["перехват", "templates/gm.hbs", "scripts/app-gm.mjs"]
   ]) {
     const hbs = read(шаблон);

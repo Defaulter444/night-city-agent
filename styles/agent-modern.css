@@ -1,0 +1,96 @@
+.nca-app,.nca-workspace { --nca-bg:#10181f; --nca-panel:#17222b; --nca-line:#31424e; --nca-text:#e5edf2; --nca-muted:#9fadb8; --nca-accent:#66d9d0; }
+.nca-app .window-content,.nca-workspace .window-content { padding:0; background:var(--nca-bg); color:var(--nca-text); }
+.nca-app .nca,.nca-workspace .nca-library { font:14px/1.45 "Segoe UI",sans-serif; background:var(--nca-bg); color:var(--nca-text); height:100%; min-height:0; }
+.nca-modern [hidden] { display:none!important; }
+.nca-app .nca button,.nca-workspace .nca-library button { width:auto; margin:0; min-height:34px; padding:6px 10px; display:inline-flex; align-items:center; justify-content:center; gap:7px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--nca-text); font:inherit; cursor:pointer; line-height:1.35; box-shadow:none; }
+.nca-app .nca button:hover,.nca-workspace .nca-library button:hover { background:#263946; border-color:var(--nca-line); box-shadow:none; }
+.nca-app .nca button:focus-visible,.nca-workspace .nca-library button:focus-visible,.nca-modern summary:focus-visible,.nca-modern input:focus-visible,.nca-modern textarea:focus-visible { outline:2px solid var(--nca-accent); outline-offset:2px; box-shadow:none; }
+.nca-app .nca h2,.nca-workspace .nca-library h2 { font-family:inherit; font-size:18px; border:0; margin:0 0 8px; color:var(--nca-text); font-weight:600; }
+.nca-app .nca .nca-top { display:flex; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--nca-line); background:var(--nca-bg); flex-shrink:0; }
+.nca-brand { display:flex; align-items:center; gap:9px; margin-right:auto; }
+.nca-brand>i { color:var(--nca-accent); font-size:20px; }
+.nca-brand strong { letter-spacing:2px; font-size:13px; }
+.nca-brand span { color:var(--nca-muted); font-size:12px; margin-left:5px; }
+.nca-app .nca .nca-number { color:var(--nca-muted); font-size:13px; font-variant-numeric:tabular-nums; }
+.nca-app .nca .nca-devbar { padding:8px 16px; background:var(--nca-bg); border-bottom:1px solid var(--nca-line); }
+.nca-app .nca button.nca-dev { background:transparent; border:1px solid var(--nca-line); border-radius:7px; padding:6px 10px; min-width:115px; }
+.nca-app .nca button.nca-dev.on { background:#203a40; border-color:#468d90; }
+.nca-app .nca .nca-dev span { color:var(--nca-muted); font-size:12px; }
+.nca-app .nca .nca-side { flex:0 0 260px; background:var(--nca-panel); border-right:1px solid var(--nca-line); padding:0; }
+.nca-sidehead { display:flex; align-items:center; justify-content:space-between; padding:17px 16px 9px; }
+.nca-sidehead h2 { margin:0!important; }
+.nca-searchbox { display:flex; gap:8px; align-items:center; margin:0 12px 12px; padding:0 10px; background:#101b23; border:1px solid var(--nca-line); border-radius:7px; color:var(--nca-muted); }
+.nca-app .nca .nca-search { height:36px; width:100%; border:0; background:transparent; color:var(--nca-text); font:12px "Segoe UI",sans-serif; box-shadow:none; }
+.nca-app .nca button.nca-contact { display:block; border:0; border-left:3px solid transparent; border-radius:0; padding:13px 16px; text-align:left; width:100%; color:var(--nca-text); background:transparent; }
+.nca-app .nca button.nca-contact.on { background:#22373f; border-left-color:var(--nca-accent); }
+.nca-app .nca .nca-contact .name { font-size:14px; font-weight:600; color:var(--nca-text); }
+.nca-app .nca .nca-contact .preview { font-size:12px; color:var(--nca-muted); margin-top:5px; }
+.nca-app .nca .nca-contact .subnum { font-size:11px; color:var(--nca-muted); }
+.nca-app .nca .nca-contact .badge { background:var(--nca-accent); color:#10272a; font-weight:700; border-radius:10px; }
+.nca-app .nca .nca-main { padding:0; background:var(--nca-bg); min-width:0; }
+.nca-app .nca .nca-head { padding:13px 20px; gap:8px; border-bottom:1px solid var(--nca-line); background:transparent; }
+.nca-who { margin-right:auto; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.nca-who strong { font-size:16px; overflow-wrap:anywhere; }
+.nca-who span { color:var(--nca-muted); font-size:12px; }
+.nca-tags { display:flex; flex-wrap:wrap; gap:4px; }
+.nca-tags small { background:#243a44; border-radius:4px; color:#b9d9e0; padding:1px 6px; font-size:11px; margin-top:5px; }
+.nca-active-tags { padding:0 20px 6px; }
+.nca-app .nca .nca-thread { padding:22px; display:flex; flex-direction:column; gap:12px; }
+.nca-app .nca .nca-msg { margin:0; display:flex; }
+.nca-app .nca .nca-msg .bubble { background:#202e39; border:1px solid #2b3c49; border-radius:10px 10px 10px 2px; color:var(--nca-text); padding:10px 13px 7px; font-size:14px; max-width:88%; box-shadow:none; white-space:normal; }
+.nca-app .nca .nca-msg.mine .bubble { background:#193b40; border-color:#2b5356; border-radius:10px 10px 2px 10px; }
+.nca-message-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+.nca-message-meta { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:5px; }
+.nca-app .nca .bubble time { display:inline; float:none; color:var(--nca-muted); margin:0; font-size:11px; }
+.nca-app .nca .nca-message-meta button { color:#98b4bf; font-size:10px; min-height:24px; padding:2px 4px; }
+.nca-app .nca button[aria-pressed="true"] { color:var(--nca-accent); background:#203b41; }
+.nca-app .nca .nca-compose { display:flex; align-items:flex-end; gap:6px; padding:14px 18px; border-top:1px solid var(--nca-line); background:var(--nca-bg); }
+.nca-app .nca .nca-input { flex:1; min-height:44px; max-height:110px; padding:10px 12px; background:var(--nca-panel); color:var(--nca-text); border:1px solid var(--nca-line); border-radius:8px; font:14px/1.4 "Segoe UI",sans-serif; }
+.nca-app .nca .nca-primary { background:var(--nca-accent); color:#10282c; min-height:40px; font-weight:600; }
+.nca-app .nca .nca-primary:hover { background:#93e9e1; }
+.nca-app .nca .nca-aloud-note { background:#30291d; border:0; color:#ddc58d; padding:7px 18px; font-size:12px; }
+.nca-app .nca .nca-empty { color:var(--nca-muted); margin:auto; padding:28px; }
+.nca-empty>i { font-size:32px; color:#607988; margin-bottom:16px; }
+.nca-app .nca .nca-contact-card { display:flex; flex-direction:column; gap:5px; }
+.nca-app .nca .nca-file-link { background:#2a4651; display:flex; width:100%; justify-content:flex-start; margin:0 0 8px; }
+.nca-app .nca .nca-image-button { padding:0; min-height:0; display:block; }
+.nca-photo { max-height:240px; object-fit:contain; }
+.nca-menu { position:relative; flex-shrink:0; }
+.nca-menu summary { display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:34px; min-height:34px; border-radius:7px; }
+.nca-menu summary:hover { background:#263946; }
+.nca-menu>div,.nca-reader details[open] { z-index:20; box-shadow:0 12px 30px #0008; }
+.nca-menu>div { position:absolute; top:100%; right:0; width:245px; padding:10px; background:#1b2a35; border:1px solid var(--nca-line); border-radius:9px; display:flex; flex-direction:column; gap:5px; }
+.nca-app .nca .nca-menu button { justify-content:flex-start; }
+.nca-menu label { padding:5px; font-size:12px; }
+.nca-app .nca .nca-name { width:100%; margin-top:7px; background:#101c24; border:1px solid var(--nca-line); color:var(--nca-text); height:34px; }
+.nca-library { display:flex; flex-direction:column; }
+.nca-library-nav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--nca-line); }
+.nca-workspace .nca-library button.active { background:#203d43; color:var(--nca-accent); }
+.nca-library-layout { display:grid; grid-template-columns:255px minmax(0,1fr); min-height:0; flex:1; }
+.nca-library-list { background:var(--nca-panel); padding:16px 12px; border-right:1px solid var(--nca-line); overflow:auto; }
+.nca-library header { display:flex; gap:8px; align-items:center; justify-content:space-between; margin-bottom:15px; }
+.nca-library header h2 { margin:0; }
+.nca-workspace .nca-library-list .nca-library-card { display:flex; flex-direction:column; align-items:flex-start; text-align:left; width:100%; padding:12px; margin-bottom:5px; overflow-wrap:anywhere; }
+.nca-library-card small,.nca-muted { color:var(--nca-muted); font-size:12px; }
+.nca-reader { padding:24px; overflow:auto; min-height:0; }
+.nca-reader h3 { margin-top:25px; }
+.nca-reader details { position:relative; font-size:12px; background:var(--nca-panel); border-radius:6px; padding:6px; }
+.nca-reader details summary { cursor:pointer; padding:3px; }
+.nca-reader details[open] { position:absolute; right:24px; top:110px; padding:12px; }
+.nca-reader details button { display:block!important; width:100%!important; text-align:left; }
+.nca-document { margin-top:20px; }
+.nca-document h2 { margin:8px 0 18px!important; font-size:23px!important; }
+.nca-document-body { white-space:pre-wrap; line-height:1.7; overflow-wrap:anywhere; }
+.nca-document footer { display:flex; flex-wrap:wrap; gap:6px; padding-top:20px; margin-top:24px; border-top:1px solid var(--nca-line); }
+.nca-document footer button,.nca-reader>button { border:1px solid var(--nca-line)!important; }
+.nca-library-empty { text-align:center; padding:45px 20px; color:var(--nca-muted); margin:auto; max-width:520px; }
+.nca-library-empty>i { font-size:32px; margin-bottom:18px; color:#647f8c; }
+.nca-terminal-entries article { display:flex; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--nca-line); padding:8px 0; }
+.nca-terminal-entries article>button:first-child { margin-right:auto; }
+.nca-terminal-entries small { color:var(--nca-muted); width:100%; font-size:11px; padding-left:10px; }
+.nca-preview-note { padding:8px 20px; background:#38321e; color:#ebd49a; }
+.nca-reader>.nca-library-card { border-bottom:1px solid var(--nca-line); padding:14px 0; }
+.nca-dialog label { display:flex; flex-direction:column; gap:5px; margin:10px 0; }
+.nca-dialog label:has(input[type="checkbox"]) { flex-direction:row; align-items:center; }
+.nca-dialog textarea { resize:vertical; min-height:100px; }
+@media(max-width:800px) { .nca-brand span{display:none} .nca-app .nca .nca-side{flex-basis:220px} .nca-app .nca .nca-primary span{display:none} .nca-library-layout{grid-template-columns:210px minmax(0,1fr)} }

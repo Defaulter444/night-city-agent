@@ -1,0 +1,43 @@
+<div class="nca-library">
+  <nav class="nca-library-nav" aria-label="Разделы Агента">
+    <button data-action="chooseSection" data-tab="files" class="{{#if filesTab}}active{{/if}}"><i class="fa-solid fa-folder-open"></i> Файлы</button>
+    <button data-action="chooseSection" data-tab="terminals" class="{{#if terminalsTab}}active{{/if}}"><i class="fa-solid fa-desktop"></i> Терминалы</button>
+    {{#if gm}}<button data-action="chooseSection" data-tab="scheduled" class="{{#if scheduledTab}}active{{/if}}">Сообщения NPC</button><button data-action="chooseSection" data-tab="storage" class="{{#if storageTab}}active{{/if}}">Данные</button>{{/if}}
+    <button data-action="netExample" title="Как это связано с Нетраннингом"><i class="fa-solid fa-diagram-project"></i></button>
+  </nav>
+  {{#if locked}}
+    <section class="nca-library-empty"><h2>Откройте хранилище</h2><p>Контакты и история сохранены в зашифрованном виде. На этом браузере нужен файл восстановления мастера.</p><button data-action="importKey">Выбрать файл восстановления</button></section>
+  {{else}}
+  {{#if storageTab}}
+    <section class="nca-reader"><h2>Контакты и история</h2><p>{{counts.devices}} устройств · {{counts.contacts}} записей в адресных книгах · {{counts.messages}} сообщений</p>
+      <button data-action="backup"><i class="fa-solid fa-download"></i> Скачать резервную копию</button>
+      {{#if protected}}<h3>Защита включена</h3><p>Ключ хранится в браузере мастера. Для другого браузера или второго мастера используйте файл восстановления.</p><button data-action="importKey">Импортировать ключ</button>
+      {{else}}<h3>Совместимый режим</h3><p>Текущая миссия работает с прежним хранилищем. Для защиты содержимого от других клиентов включите шифрование после сохранения файла восстановления.</p><button data-action="protect">Сохранить копию и включить защиту</button>{{/if}}
+      <p class="nca-muted">Резервная копия содержит данные миссии. Храните её вне папки Foundry Data. Номера и имена контактов при переносе не меняются.</p>
+    </section>
+  {{else}}
+  {{#if scheduledTab}}
+    <section class="nca-reader"><header><h2>Сообщения NPC</h2><button data-action="schedule">Запланировать</button></header><p class="nca-muted">Доставка выполняется при подключённом мастере. Время мира следует за игровыми часами Foundry.</p>
+      {{#each scheduled}}<article class="nca-library-card"><strong>{{from}} → {{to}}</strong><p>{{text}}</p><small>{{when}}</small><button data-action="cancelSchedule" data-id="{{id}}">Отменить</button></article>{{else}}<p>Запланированных сообщений нет.</p>{{/each}}
+    </section>
+  {{else}}
+    {{#if preview}}<div class="nca-preview-note">Просмотр: {{preview}}. Данные миссии не меняются. <button data-action="preview">Вернуться к мастеру</button></div>{{/if}}
+    <div class="nca-library-layout">
+      <aside class="nca-library-list">
+      {{#if filesTab}}<header><h2>Файлы</h2><button data-action="createDocument" title="Создать файл"><i class="fa-solid fa-plus"></i></button></header>
+        {{#each documents}}<button class="nca-library-card {{#if selected}}active{{/if}}" data-action="openDocument" data-id="{{id}}"><strong>{{title}}</strong><small>{{source}}</small></button>{{else}}<p class="nca-muted">Здесь появятся созданные и полученные файлы.</p>{{/each}}
+      {{else}}<header><h2>Терминалы</h2>{{#if editable}}<button data-action="createTerminal" title="Создать терминал"><i class="fa-solid fa-plus"></i></button>{{/if}}</header>
+        {{#each terminals}}<button class="nca-library-card {{#if selected}}active{{/if}}" data-action="selectTerminal" data-id="{{id}}"><strong>{{title}}</strong><small>{{#if portable}}Переносной{{else}}На сцене{{/if}}</small></button>{{else}}<p class="nca-muted">Доступных терминалов на этой сцене нет.</p>{{/each}}
+      {{/if}}
+      </aside>
+      <section class="nca-reader">
+        {{#if terminalsTab}}{{#if terminal}}<header><h2>{{terminal.title}}</h2>{{#if editable}}<details><summary>Настроить</summary><button data-action="editTerminal">Название и доступ</button><button data-action="cloneTerminal">Создать копию</button><button data-action="entry">Добавить письмо / файл</button><button data-action="bind">Привязать к тайлу</button><button data-action="preview">Глазами игрока</button><button data-action="push">Открыть игроку</button></details>{{/if}}</header>
+          <div class="nca-terminal-entries">{{#each entries}}<article><button data-action="openEntry" data-id="{{id}}"><i class="fa-regular fa-file-lines"></i> {{title}}</button>{{#if ../editable}}<button data-action="publish" data-id="{{id}}">{{#if published}}Опубликовано{{else}}Скрыто{{/if}}</button>{{/if}}{{#if random}}<small>Общий результат таблицы</small>{{/if}}</article>{{else}}<p>Писем и файлов пока нет.</p>{{/each}}</div>
+        {{/if}}{{/if}}
+        {{#if document}}<article class="nca-document"><div class="nca-muted">{{document.source}}</div><h2>{{document.title}}</h2><div class="nca-document-body">{{document.body}}</div>
+          {{#unless preview}}<footer><button data-action="saveDocument">Сохранить в Агент</button><button data-action="sendDocument">Отправить</button><button data-action="carrier">На носитель</button>{{#if gm}}<button data-action="editDocument">Редактировать</button>{{/if}}</footer>{{/unless}}
+        </article>{{else}}<div class="nca-library-empty"><i class="fa-regular fa-file-lines"></i><h2>Выберите файл</h2><p>Чтение, сохранение и передача данных — в одном месте.</p></div>{{/if}}
+      </section>
+    </div>
+  {{/if}}{{/if}}{{/if}}
+</div>
