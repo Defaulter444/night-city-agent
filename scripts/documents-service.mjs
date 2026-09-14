@@ -1,6 +1,7 @@
 import { mutate, readState } from './store.mjs';
 import * as D from './documents-model.mjs';
 import * as M from './model.mjs';
+import { documentImages } from './document-images.mjs';
 const requireGM = user => { if (!user?.isGM) throw Error('Только для мастера'); };
 import { isStorageItem } from './carriers.mjs';
 export { isStorageItem } from './carriers.mjs';
@@ -30,10 +31,12 @@ export async function runDocumentOperation(data, callerId) {
           if (!doc) throw Error('Файл не найден');
           const title = String(data.title ?? '').trim().slice(0, 160);
           if (!title) throw Error('Укажите название файла');
-          Object.assign(doc, { title, body: String(data.body ?? '').slice(0, 100000), source: String(data.source ?? '').slice(0, 300) });
+          // Older clients omit images when editing text. Only an explicit list replaces them.
+          const images = data.images === undefined ? {} : { images: documentImages(data.images) };
+          Object.assign(doc, { title, body: String(data.body ?? '').slice(0, 100000), source: String(data.source ?? '').slice(0, 300), ...images });
           return doc.id;
         }
-        return D.createDocument(state, { title: data.title, body: data.body, source: data.source,
+        return D.createDocument(state, { title: data.title, body: data.body, source: data.source, images: data.images,
           holders: data.number ? [data.number] : [], readers: user.isGM ? data.readers ?? [] : [user.id] }).id;
       }
       case 'sendDocument': return D.attachDocument(state, data, user);

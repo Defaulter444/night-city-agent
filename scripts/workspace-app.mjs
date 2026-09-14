@@ -3,6 +3,7 @@ import { projectState, legacyInventory } from './documents-model.mjs';
 import { documentOperation, refreshState, getSocket, broadcastRefresh, UPDATE_HOOK } from './socket.mjs';
 import { esc } from './clock.mjs';
 import { isStorageItem } from './documents-service.mjs';
+import { editDocumentDialog } from './document-editor.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const option = (value, label, selected = false) => `<option value="${esc(value)}" ${selected ? 'selected' : ''}>${esc(label)}</option>`;
 export function inputDialog(title, content, submit) {
@@ -27,7 +28,7 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = { id: 'nca-workspace', classes: ['nca-workspace'], tag: 'div',
     window: { title: 'Агент · Файлы и терминалы', icon: 'fa-solid fa-folder-open', resizable: true },
     position: { width: 900, height: 650 },
-    actions: Object.fromEntries(['chooseSection','openDocument','createDocument','editDocument','sendDocument','saveDocument','carrier','createTerminal','editTerminal','cloneTerminal','selectTerminal','entry','publish','openEntry','push','bind','preview','schedule','cancelSchedule','backup','protect','importKey','netExample'].map(name => [name, action])) };
+    actions: Object.fromEntries(['chooseSection','openDocument','openDocumentImage','createDocument','editDocument','sendDocument','saveDocument','carrier','createTerminal','editTerminal','cloneTerminal','selectTerminal','entry','publish','openEntry','push','bind','preview','schedule','cancelSchedule','backup','protect','importKey','netExample'].map(name => [name, action])) };
   static PARTS = { body: { template: 'modules/night-city-agent/templates/workspace.hbs', scrollable: ['.nca-library-list','.nca-reader'] } };
   constructor(options = {}) {
     const { tab = 'files', number = null, documentId = null, terminalId = null, recipient = null } = options;
@@ -75,11 +76,18 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     if (storageLocked()) throw Error('Сначала импортируйте ключ восстановления');
     const state = readState();
     if (name === 'openDocument') { this.documentId = target.dataset.id; return; }
+    if (name === 'openDocumentImage') {
+      const view = this.previewUser ? projectState(state, game.users.get(this.previewUser), game.user.viewedScene) : state;
+      const doc = view.documents?.[this.documentId], image = doc?.images?.[Number(target.dataset.index)];
+      if (!image) throw Error('Изображение недоступно');
+      const Popout = typeof ImagePopout !== 'undefined' ? ImagePopout : foundry.applications.apps.ImagePopout;
+      new Popout(image.src, { title: `${doc.title} · ${image.name}`, shareable: false }).render(true); return;
+    }
     if (name === 'selectTerminal') { this.terminalId = target.dataset.id; this.documentId = null; return; }
     if (name === 'createDocument' || name === 'editDocument') {
       const doc = name === 'editDocument' ? state.documents?.[this.documentId] : null;
-      const id = await inputDialog(doc ? 'Редактировать файл' : 'Новый файл', field('title','Название',doc?.title) + field('source','Источник',doc?.source) + `<label>Содержимое<textarea name="body" rows="12">${esc(doc?.body || '')}</textarea></label>`,
-        fd => documentOperation('createDocument', { id: doc?.id, number: this.number, title: fd.get('title'), source: fd.get('source'), body: fd.get('body') }));
+      const id = await editDocumentDialog(doc,
+        fields => documentOperation('createDocument', { id: doc?.id, number: this.number, ...fields }));
       if (id) this.documentId = id; return;
     }
     if (name === 'saveDocument') { await documentOperation('saveDocument', { number: this.number, documentId: this.documentId }); ui.notifications.info('Файл сохранён в Агенте'); return; }

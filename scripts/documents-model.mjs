@@ -1,6 +1,7 @@
 /** Pure data operations. Existing devices/books/threads are never renumbered. */
 import { normalize, threadKey, pushMessage } from './model.mjs';
 import { carrierAccess } from './carriers.mjs';
+import { documentImages } from './document-images.mjs';
 export const clone = value => structuredClone(value);
 export const uid = () => [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2, '0')).join('');
 export function ownDevice(state, number, user) {
@@ -34,6 +35,7 @@ export function projectState(state, user, sceneId = '') {
   for (const num of mine) if (state.organizer?.[num]) out.organizer[num] = clone(state.organizer[num]);
   for (const doc of Object.values(state.documents ?? {})) if (canReadDocument(state, doc, user, sceneId)) {
     out.documents[doc.id] = { id: doc.id, title: doc.title, body: doc.body, source: doc.source, createdAt: doc.createdAt };
+    if (doc.images?.length) out.documents[doc.id].images = clone(doc.images);
   }
   for (const t of Object.values(state.terminals ?? {})) if (terminalAllowed(t, user, sceneId)) {
     out.terminals[t.id] = { id: t.id, title: t.title, portable: t.portable, sceneId: t.sceneId,
@@ -41,10 +43,11 @@ export function projectState(state, user, sceneId = '') {
   }
   return out;
 }
-export function createDocument(state, { title, body, source = '', holders = [], readers = [] }, now = Date.now()) {
+export function createDocument(state, { title, body, source = '', holders = [], readers = [], images }, now = Date.now()) {
   title = String(title ?? '').trim().slice(0, 160); body = String(body ?? '').slice(0, 100000);
   if (!title) throw Error('Укажите название файла');
   const doc = { id: uid(), title, body, source: String(source).slice(0, 300), holders: [...new Set(holders)], readers: [...new Set(readers)], createdAt: now };
+  if (images !== undefined) doc.images = documentImages(images);
   (state.documents ??= {})[doc.id] = doc;
   return doc;
 }
