@@ -47,9 +47,10 @@ Cyberpunk RED — собственность **R. Talsorian Games**. Это не
 
 ## Разработка
 
-    node test/model.test.mjs     # логика, 34 проверки
-    node test/wiring.test.mjs    # связность и манифест, 16 проверок
+    node --test test/*.test.mjs  # все автоматические проверки
     node tools/build-pack.mjs    # пересобрать компендиум (при закрытом Foundry)
     node tools/build-changelog.mjs
 
 Стенд оформления — `tools/preview.html`, открывается в браузере.
+
+[Откуда продолжить после 0.11.0](docs/CONTINUE-0.11.md).
