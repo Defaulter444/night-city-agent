@@ -30,9 +30,10 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: Object.fromEntries(['chooseSection','openDocument','createDocument','editDocument','sendDocument','saveDocument','carrier','createTerminal','editTerminal','cloneTerminal','selectTerminal','entry','publish','openEntry','push','bind','preview','schedule','cancelSchedule','backup','protect','importKey','netExample'].map(name => [name, action])) };
   static PARTS = { body: { template: 'modules/night-city-agent/templates/workspace.hbs', scrollable: ['.nca-library-list','.nca-reader'] } };
   constructor(options = {}) {
-    const { tab = 'files', number = null, documentId = null, terminalId = null } = options;
+    const { tab = 'files', number = null, documentId = null, terminalId = null, recipient = null } = options;
     super(options); this.tab = tab; this.number = number;
     this.documentId = documentId; this.terminalId = terminalId;
+    this.recipient = recipient;
     this.previewUser = null; this.closing = false;
     this.onUpdate = () => { if (this.rendered && !this.closing) this.render(); };
   }
@@ -83,7 +84,9 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (name === 'saveDocument') { await documentOperation('saveDocument', { number: this.number, documentId: this.documentId }); ui.notifications.info('Файл сохранён в Агенте'); return; }
     if (name === 'sendDocument') {
-      await inputDialog('Отправить файл', `<label>Получатель<select name="to">${Object.entries(state.devices[this.number]?.book ?? {}).map(([n, title]) => option(n, `${title} · ${n}`)).join('')}</select></label>` + field('text','Сообщение'),
+      const contacts = { ...(state.devices[this.number]?.book ?? {}) };
+      if (this.recipient && state.devices[this.recipient]) contacts[this.recipient] ||= this.recipient;
+      await inputDialog('Отправить файл', `<p>С номера ${esc(this.number || '')}</p><label>Получатель<select name="to">${Object.entries(contacts).map(([n, title]) => option(n, `${title} · ${n}`, n === this.recipient)).join('')}</select></label>` + field('text','Сообщение'),
         fd => documentOperation('sendDocument', { from: this.number, to: fd.get('to'), text: fd.get('text'), documentId: this.documentId })); return;
     }
     if (name === 'carrier') {

@@ -367,7 +367,7 @@ async function modernAction(event, target) {
   try {
     const state = storageLocked() ? null : readState();
     switch (target.dataset.action) {
-      case 'files': await this.saveDraft(); openWorkspace({ number: this.num, tab: 'files' }); return;
+      case 'files': await this.saveDraft(); openWorkspace({ number: this.num, recipient: this.other, tab: 'files' }); return;
       case 'data': openWorkspace({ tab: 'storage' }); return;
       case 'openDocument': openWorkspace({ number: this.num, documentId: target.dataset.id, tab: 'files' }); return;
       case 'pin': await documentOperation('organize', { number: this.num, other: this.other, pin: Number(target.dataset.index) }); break;
