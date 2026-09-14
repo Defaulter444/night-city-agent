@@ -133,4 +133,21 @@ await test("ordinary text send preserves content and rejects a non-owner", async
   assert.equal(cached.threads["1111-1111|2222-2222"].length, 1);
   assert.equal(cached.threads["1111-1111|2222-2222"][0].x, "сообщение");
 });
+await test("a queued render cannot restore sent text or erase newer typing", async () => {
+  addDevice(cached, { num: "1111-1111" }); addDevice(cached, { num: "2222-2222" });
+  const app = new AgentApp({ num: "1111-1111", other: "2222-2222" });
+  const field = { value: "old render snapshot", addEventListener() {} };
+  app.element = { querySelector: selector => selector === '.nca-input' ? field : null, querySelectorAll: () => [] };
+  for (const current of ["", "new text typed while sending"]) {
+    field.value = "old render snapshot";
+    app.drafts["1111-1111|2222-2222"] = current;
+    app._onRender({}, {});
+    assert.equal(field.value, current);
+    assert.equal(app.drafts["1111-1111|2222-2222"], current);
+  }
+  delete app.drafts["1111-1111|2222-2222"];
+  field.value = "saved draft on first opening";
+  app._onRender({}, {});
+  assert.equal(app.drafts["1111-1111|2222-2222"], field.value);
+});
 console.log(JSON.stringify(results, null, 2));

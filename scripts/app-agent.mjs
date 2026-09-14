@@ -486,7 +486,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       : [];
 
     return {
-      isGM, search: this.search, onlyPins: this.onlyPins,
+      isGM, search: this.search, onlyPins: this.onlyPins, contactCount: contacts.length,
       draft: this.drafts[`${this.num}|${this.other}`] ?? state.organizer?.[this.num]?.drafts?.[this.other] ?? '',
       tags: state.organizer?.[this.num]?.tags?.[this.other] ?? [],
       noDevice: !device,
@@ -530,12 +530,27 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const q = this.search.trim().toLocaleLowerCase('ru-RU');
       for (const el of this.element.querySelectorAll('[data-search]')) el.hidden = !el.dataset.search.toLocaleLowerCase('ru-RU').includes(q);
       for (const el of this.element.querySelectorAll('.nca-msg')) if (this.onlyPins && el.dataset.pinned !== 'true') el.hidden = true;
+      const noContacts = this.element.querySelector('.nca-search-empty');
+      if (noContacts) noContacts.hidden = !q || Array.from(this.element.querySelectorAll('.nca-contacts li[data-search]')).some(el => !el.hidden);
+      const noMessages = this.element.querySelector('.nca-filter-empty');
+      if (noMessages) {
+        const messages = Array.from(this.element.querySelectorAll('.nca-msg'));
+        noMessages.hidden = !(q || this.onlyPins) || messages.some(el => !el.hidden);
+        noMessages.textContent = q ? 'В этой переписке совпадений нет.' : 'В этой переписке пока нет закреплённых сообщений.';
+      }
+      for (const empty of this.element.querySelectorAll('.nca-thread > .nca-empty')) empty.hidden = Boolean(q || this.onlyPins);
     };
     search?.addEventListener('input', () => { this.search = search.value; filter(); });
     filter();
     // Enter отправляет, Shift+Enter — перенос строки.
     const input = this.element.querySelector(".nca-input");
-    if (input && this.num && this.other) this.drafts[`${this.num}|${this.other}`] = input.value;
+    if (input && this.num && this.other) {
+      const key = `${this.num}|${this.other}`;
+      // A queued render may contain the draft from before a completed send or
+      // the latest keystroke. Keep the current local value over that snapshot.
+      if (Object.hasOwn(this.drafts, key)) input.value = this.drafts[key];
+      else this.drafts[key] = input.value;
+    }
     input?.addEventListener('input', () => {
       this.drafts[`${this.num}|${this.other}`] = input.value;
       clearTimeout(this.draftTimer);
