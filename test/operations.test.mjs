@@ -150,4 +150,25 @@ await test("a queued render cannot restore sent text or erase newer typing", asy
   app._onRender({}, {});
   assert.equal(app.drafts["1111-1111|2222-2222"], field.value);
 });
+await test('new contact normalizes its number and persists even without a display name', async () => {
+  addDevice(cached,{num:'1111-1111',owner:'player'});addDevice(cached,{num:'2222-2222'});
+  const prompt=foundry.applications.api.DialogV2.prompt;
+  gm.active=true;
+  foundry.applications.api.DialogV2.prompt=async()=>({num:'2222 2222',name:''});
+  const app={num:'1111-1111',other:null,saveDraft:async()=>{},render(){}};
+  try{await AgentApp.DEFAULT_OPTIONS.actions.newContact.call(app);}finally{foundry.applications.api.DialogV2.prompt=prompt;gm.active=false;}
+  assert.equal(app.other,'2222-2222');assert.equal(cached.devices['1111-1111'].book['2222-2222'],'2222-2222');
+});
+await test('player-to-NPC file delivery uses authenticated notifications after durable save', async () => {
+  const D=await import('../scripts/documents-model.mjs');
+  addDevice(cached,{num:'1111-1111',owner:'player'});addDevice(cached,{num:'2222-2222',label:'Роуг'});
+  const doc=D.createDocument(cached,{title:'File',body:'x',holders:['1111-1111']});
+  const delivered=[],execute=socket.executeForUsers;gm.active=true;player.active=true;globalThis.Hooks={callAll(){}};
+  socket.executeForUsers=async(name,ids,payload)=>{delivered.push({name,ids,payload});};
+  try{await handlers.get('documentOperation').call({socketdata:{userId:'player'}},{op:'sendDocument',from:'1111-1111',to:'2222-2222',documentId:doc.id});}
+  finally{socket.executeForUsers=execute;gm.active=false;player.active=false;}
+  assert.ok(delivered.some(d=>d.name==='deliver'&&d.ids.includes('gm')&&d.payload.senderId==='player'));
+  await handlers.get('deliver')({from:'1111-1111',to:'2222-2222',senderId:'player'});
+  assert.ok(notifications.some(n=>n.text.includes('Роуг')&&n.text.includes('1111-1111')));
+});
 console.log(JSON.stringify(results, null, 2));

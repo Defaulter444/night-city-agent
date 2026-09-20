@@ -11,8 +11,9 @@ test('requests and replies always name server recipients; duplicate delivery app
  for(const [channel,reply,options]of packets){assert.equal(channel,'module.night-city-agent');assert.deepEqual(options,{recipients:['p']});assert.equal(reply.value.id,1);}
 });
 test('player cannot call delivery on another player; nonexistent sender rejected',async()=>{
- const socket=new PrivateSocket();socket.register('deliver',()=>true);game.user=p;
+ const socket=new PrivateSocket();socket.register('deliver',()=>true);socket.register('conferenceDeliver',()=>true);game.user=p;
  await assert.rejects(socket.invoke('deliver',[],'q'));await assert.rejects(socket.invoke('deliver',[],'missing'));
+ await assert.rejects(socket.invoke('conferenceDeliver',[],'q'));assert.equal(await socket.invoke('conferenceDeliver',[],'gm'),true);
  assert.equal(await socket.invoke('deliver',[],'gm'),true);game.user=gm;
 });
 test('reply is accepted only from expected server-authenticated sender',async()=>{

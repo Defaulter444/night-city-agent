@@ -206,6 +206,27 @@
 .nca-dialog textarea { resize:vertical; min-height:100px; }
 .nca-dialog .hint { color:#c7bfc8!important; }
 .nca-dialog :is(input,textarea,select):focus-visible { outline:2px solid #ff919e; }
+/* Native DialogV2 and the CPR theme otherwise supply conflicting input colors. */
+:is(.app,.application):has(.nca-dialog) .nca-dialog :is(input,textarea,select) { color:#eee7eb!important; -webkit-text-fill-color:#eee7eb!important; background:#111114!important; caret-color:#ffadb7; }
+.nca-dialog input[name="num"] { font:16px/1.5 Consolas,monospace; min-height:36px; opacity:1; }
+.nca-dialog input::placeholder { color:#aea1ac!important; -webkit-text-fill-color:#aea1ac!important; opacity:1; }
+.nca-app .nca .nca-contact .subnum { color:#cfc4ce; }
+.nca-form-error[hidden] { display:none; }
+.nca-form-error { color:#ffb2bd; border-left:3px solid #ed344d; padding:8px 10px; background:#322027; }
+.nca-input-dialog { max-width:calc(100vw - 24px); max-height:calc(100vh - 36px); }
+.nca-input-dialog .dialog-content { overflow:auto; min-height:0; }
+.nca-input-dialog .dialog-buttons { flex:none; }
+.nca-member-picker { max-height:300px; overflow:auto; border:1px solid #685560; }
+.nca-dialog .nca-member-choice { display:flex; flex-direction:row; align-items:center; gap:10px; }
+.nca-dialog .nca-member-choice input { flex:none; width:18px; height:18px; margin:0; }
+.nca-member-choice span { min-width:0; overflow-wrap:anywhere; }
+.nca-member-choice small { display:block; color:#cfc4ce; font:12px/1.5 Consolas,monospace; }
+.nca-group-device { display:flex; flex-direction:column; gap:4px; margin-left:auto; color:var(--nca-muted); font-size:11px; min-width:0; }
+.nca-app .nca-group-device select { max-width:300px; background:#111114!important; color:var(--nca-text)!important; -webkit-text-fill-color:var(--nca-text)!important; border:1px solid #685560; }
+.nca-group-author { display:block; margin-bottom:7px; color:#ffb5c0; font-size:11px; overflow-wrap:anywhere; }
+.nca-room-members { list-style:none; max-height:240px; overflow:auto; margin:0 0 8px; padding:0; }
+.nca-room-members li { padding:7px 3px; border-bottom:1px solid var(--nca-line); }
+.nca-room-members small { display:block; color:var(--nca-muted); font:11px/1.5 Consolas,monospace; }
 /* Document attachments keep the same access and layout on files and terminals. */
 .nca-document-images { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:16px; margin-top:22px; }
 .nca-document-images figure,.nca-image-previews figure { margin:0; min-width:0; }

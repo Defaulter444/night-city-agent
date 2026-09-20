@@ -7,13 +7,27 @@ import { editDocumentDialog } from './document-editor.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const option = (value, label, selected = false) => `<option value="${esc(value)}" ${selected ? 'selected' : ''}>${esc(label)}</option>`;
 export function inputDialog(title, content, submit) {
-  let submitting = false;
-  return new Promise(resolve => new Dialog({ title, content: `<form class="nca-dialog">${content}</form>`,
-    buttons: { save: { label: 'Сохранить', callback: html => {
-      submitting = true;
-      const form = html[0].querySelector('form');
-      Promise.resolve(submit(new FormData(form))).then(resolve).catch(error => { ui.notifications.error(error.message); resolve(null); });
-    } }, cancel: { label: 'Отмена', callback: () => resolve(null) } }, default: 'save', close: () => { if (!submitting) resolve(null); } }).render(true));
+  return new Promise(resolve => {
+    class AgentInputDialog extends Dialog {
+      async submit(button) {
+        if (this.saving) return;
+        if (button !== this.data.buttons.save) return this.close();
+        const root = this.element[0], form = root.querySelector('form');
+        if (!form.reportValidity()) return;
+        this.saving = true;
+        const buttons = root.querySelectorAll('.dialog-button'); buttons.forEach(b => b.disabled = true);
+        try { const value = await submit(new FormData(form)); this.saving = false; resolve(value); await this.close(); }
+        catch (error) {
+          this.saving = false; buttons.forEach(b => b.disabled = false);
+          const message = root.querySelector('.nca-form-error'); message.textContent = error.message; message.hidden = false;
+        }
+      }
+      async close(options) { if (!this.saving) return super.close(options); }
+    }
+    new AgentInputDialog({ title, content: `<form class="nca-dialog">${content}<p class="nca-form-error" role="alert" hidden></p></form>`,
+      buttons: { save: { label: 'Сохранить' }, cancel: { label: 'Отмена' } }, default: 'save', close: () => resolve(null)
+    }, { width: 500, classes: ['dialog', 'nca-input-dialog'] }).render(true);
+  });
 }
 const field = (name, title, value = '') => `<label>${title}<input name="${name}" value="${esc(value)}"></label>`;
 const download = bundle => saveDataToFile(JSON.stringify(bundle, null, 2), 'application/json', `agent-${game.world.id}-${new Date().toISOString().slice(0,10)}.json`);

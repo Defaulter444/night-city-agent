@@ -5,7 +5,7 @@
  */
 import { readState, storageLocked } from "./store.mjs";
 import * as M from "./model.mjs";
-import { sendMessage, sendImage, setBook, markRead, setRingtone, documentOperation, refreshState, UPDATE_HOOK } from "./socket.mjs";
+import { sendMessage, sendImage, setBook, markRead, setRingtone, documentOperation, noteOperation, refreshState, UPDATE_HOOK } from "./socket.mjs";
 import { shrinkImage, MAX_BYTES } from "./images.mjs";
 import { browseFiles, canUploadFiles } from "./foundry-compat.mjs";
 import { openHelp } from "./help.mjs";
@@ -16,6 +16,7 @@ import { callREO, callTrauma, inspectLifestyle, findMembership } from "./service
 
 import { openWorkspace, inputDialog } from './workspace-app.mjs';
 import { esc } from './clock.mjs';
+import { noteOwner, openNoteResult } from './notes.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 function hhmm(ts) {
@@ -177,7 +178,7 @@ async function onNewContact() {
   });
 
   if (!result?.num) return;
-  const num = result.num;
+  const num = M.normalizeNumber(result.num);
 
   if (num === this.num) {
     ui.notifications.warn("Агент: это ваш собственный номер");
@@ -188,13 +189,12 @@ async function onNewContact() {
     return;
   }
 
-  if (result.name) {
-    try {
-      await setBook(this.num, num, result.name);
-    } catch (err) {
-      ui.notifications.error(`Агент: ${err.message}`);
-      return;
-    }
+  try {
+    await this.saveDraft();
+    await setBook(this.num, num, result.name || num);
+  } catch (err) {
+    ui.notifications.error(`Агент: ${err.message}`);
+    return;
   }
   this.other = num;
   this.render();
@@ -367,6 +367,20 @@ async function modernAction(event, target) {
   try {
     const state = storageLocked() ? null : readState();
     switch (target.dataset.action) {
+      case 'conferences': {
+        await this.saveDraft(); const { openConferences } = await import('./conferences-app.mjs');
+        openConferences({ number: this.num }); return;
+      }
+      case 'newNote': {
+        const number = this.num;
+        const result = await inputDialog('Новая заметка Агента', '<p class="hint">Заметка сохранится в личном журнале Foundry. Он доступен владельцу Агента и мастеру.</p><label>Название<input name="title" required maxlength="160"></label><label>Текст заметки<textarea name="body" rows="10" required maxlength="100000"></textarea></label>',
+          fd => noteOperation('create', { number, title: fd.get('title'), body: fd.get('body') }));
+        if (result) { await openNoteResult(result); ui.notifications.info('Заметка сохранена в личном журнале'); } return;
+      }
+      case 'notes': {
+        const owner = noteOwner(state, this.num, game.user), id = game.settings.get('night-city-agent', 'noteJournals')?.[owner];
+        await openNoteResult(id ? { journalId: id } : null); return;
+      }
       case 'files': await this.saveDraft(); openWorkspace({ number: this.num, recipient: this.other, tab: 'files' }); return;
       case 'data': openWorkspace({ tab: 'storage' }); return;
       case 'openDocument': openWorkspace({ number: this.num, documentId: target.dataset.id, tab: 'files' }); return;
@@ -422,7 +436,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     },
     position: { width: 920, height: 650 },
     actions: {
-      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact'].map(n => [n,modernAction])),
+      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact','conferences','newNote','notes'].map(n => [n,modernAction])),
       pickDevice: onPickDevice,
       pickContact: onPickContact,
       send: onSend,

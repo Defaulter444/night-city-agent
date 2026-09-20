@@ -54,7 +54,8 @@ const pairs = [
   ["окно Агента", "scripts/app-agent.mjs", "templates/agent-modern.hbs"],
   ["пульт мастера", "scripts/app-gm.mjs", "templates/gm.hbs"],
   ["справка", "scripts/help.mjs", "templates/help.hbs"],
-  ["файлы и терминалы", "scripts/workspace-app.mjs", "templates/workspace.hbs"]
+  ["файлы и терминалы", "scripts/workspace-app.mjs", "templates/workspace.hbs"],
+  ["конференции", "scripts/conferences-app.mjs", "templates/conferences.hbs"]
 ];
 
 for (const [label, script, template] of pairs) {

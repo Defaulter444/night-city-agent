@@ -108,6 +108,10 @@ export function addDevice(state, { kind = KIND.POCKET, owner = null, label = "",
 
 export function removeDevice(state, num) {
   delete state.devices[num];
+  for (const room of Object.values(state.conferences ?? {})) {
+    room.members = room.members.filter(n => n !== num);
+    delete room.read?.[num]; delete room.drafts?.[num];
+  }
   for (const key of Object.keys(state.threads)) {
     if (key.split("|").includes(num)) delete state.threads[key];
   }
@@ -229,6 +233,7 @@ export function usedImages(state) {
   for (const msgs of Object.values(state?.threads ?? {})) {
     for (const msg of msgs ?? []) if (msg?.p) used.add(msg.p);
   }
+  for (const room of Object.values(state?.conferences ?? {})) for (const msg of room.messages ?? []) if (msg.p) used.add(msg.p);
   return used;
 }
 

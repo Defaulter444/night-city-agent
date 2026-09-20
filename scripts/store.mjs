@@ -73,6 +73,7 @@ function requirePrimaryGM() {
 }
 
 export function registerSettings() {
+  game.settings.register(MODULE_ID, 'noteJournals', { scope: 'world', config: false, type: Object, default: {} });
   game.settings.register(MODULE_ID, 'vault', { scope: 'world', config: false, type: Object, default: {} });
   game.settings.register(MODULE_ID, KEY, {
     scope: "world",

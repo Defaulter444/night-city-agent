@@ -13,6 +13,10 @@ import { handleWealth, handleTransfer } from "./wealth.mjs";
 import * as M from "./model.mjs";
 import * as Img from "./images.mjs";
 import { getFilePicker } from "./foundry-compat.mjs";
+import { runConferenceOperation } from './conferences-service.mjs';
+import { runNoteOperation } from './notes.mjs';
+import { npcIncoming, incomingLabel } from './incoming.mjs';
+import { conferenceKey } from './conferences-model.mjs';
 
 export const UPDATE_HOOK = "nightCityAgentUpdate";
 
@@ -31,9 +35,20 @@ export function registerSocket() {
   socket.register('snapshot', function() { return stateForUser(this.socketdata.userId); });
   socket.register('documentOperation', async function(data) {
     const result = await runDocumentOperation(data, this.socketdata.userId);
-    if (!(data.op === 'organize' && typeof data.draft === 'string')) await broadcastRefresh();
+    if (['sendDocument', 'shareContact'].includes(data.op)) await deliverDirect(data.from, data.to, this.socketdata.userId);
+    else if (!(data.op === 'organize' && typeof data.draft === 'string')) await broadcastRefresh();
     return result;
   });
+  socket.register('noteOperation', function(data) { return runNoteOperation(data, this.socketdata.userId); });
+  socket.register('conferenceOperation', async function(data) {
+    const result = await runConferenceOperation(data, this.socketdata.userId);
+    if (data.op === 'send') {
+      const state = readState(), room = state.conferences[data.id];
+      await notifyUsers('conferenceDeliver', audienceFor(state, ...room.members), { id: room.id, from: data.number, senderId: this.socketdata.userId });
+    } else if (!['read', 'draft'].includes(data.op)) await broadcastRefresh();
+    return result;
+  });
+  socket.register('conferenceDeliver', clientConferenceDeliver);
   socket.register('terminalPush', async function(id) {
     await refreshState();
     const { openWorkspace } = await import('./workspace-app.mjs');
@@ -86,6 +101,10 @@ function audienceFor(state, ...numbers) {
   for (const user of game.users) if (user.isGM && user.active) ids.add(user.id);
   return [...ids].filter(id => game.users.get(id)?.active);
 }
+async function deliverDirect(from, to, senderId) {
+  const fresh = readState(), ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
+  await notifyUsers('deliver', audienceFor(fresh, from, to), { from, to, ringtone, senderId });
+}
 
 /* ------------------------------------------------- обработчики на мастере */
 
@@ -99,9 +118,7 @@ async function gmSend({ from, to, text }) {
     return M.pushMessage(s, from, to, clean);
   });
 
-  const fresh = readState();
-  const ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
-  await notifyUsers("deliver", audienceFor(fresh, from, to), { from, to, ringtone });
+  await deliverDirect(from, to, callerId);
   return msg;
 }
 
@@ -135,9 +152,7 @@ async function gmSendImage({ from, to, image, text }) {
     return M.pushMessage(s, from, to, clean, Date.now(), { img: path });
   });
 
-  const fresh = readState();
-  const ringtone = fresh.devices[to]?.ringtone || defaultRingtone();
-  await notifyUsers("deliver", audienceFor(fresh, from, to), { from, to, ringtone });
+  await deliverDirect(from, to, callerId);
   return msg;
 }
 
@@ -200,12 +215,14 @@ async function gmMarkRead({ myNum, other }) {
 
 /* ------------------------------------------------- обработчики на клиентах */
 
-async function clientDeliver({ from, to, ringtone }) {
+async function clientDeliver({ from, to, ringtone, senderId }) {
   await refreshState();
   const state = readState();
   const mine = state.devices[to]?.owner === game.user.id;
+  const npc = npcIncoming(state, game.users, game.user, senderId, from, [to]).length > 0;
+  if (npc) ui.notifications.info(incomingLabel(state, from, to));
 
-  if (mine) {
+  if (mine || npc) {
     const { isThreadOpen } = await import("./presence.mjs");
 
     if (isThreadOpen(to, from)) {
@@ -215,8 +232,25 @@ async function clientDeliver({ from, to, ringtone }) {
     } else {
       const { startRing, ringKey } = await import("./ringtone.mjs");
       startRing(ringKey(to, from), ringtone);
-      ui.notifications.info(`Агент: входящее на ${to}`);
+      if (!npc) ui.notifications.info(`Агент: входящее на ${to}`);
     }
+  }
+  Hooks.callAll(UPDATE_HOOK);
+}
+
+async function clientConferenceDeliver({ id, from, senderId }) {
+  await refreshState();
+  const state = readState(), room = state.conferences?.[id];
+  if (!room) { Hooks.callAll(UPDATE_HOOK); return; }
+  const npc = npcIncoming(state, game.users, game.user, senderId, from, room.members);
+  const own = room.members.filter(n => n !== from && state.devices[n]?.owner === game.user.id);
+  const recipients = [...new Set([...npc, ...own])];
+  const { isConferenceOpen } = await import('./conference-presence.mjs');
+  const { startRing, ringKey } = await import('./ringtone.mjs');
+  if (game.user.id !== senderId && recipients.length) {
+    const sender = state.devices[recipients[0]]?.book?.[from] || state.devices[from]?.label || from;
+    if (npc.length || recipients.some(n => !isConferenceOpen(n, id))) ui.notifications.info(`Агент · ${room.title}: ${sender}${npc.length ? ` → НПС ${npc.map(n => state.devices[n]?.label || n).join(', ')}` : ''}`);
+    for (const n of recipients) if (!isConferenceOpen(n, id)) startRing(ringKey(n, conferenceKey(id)), state.devices[n]?.ringtone || defaultRingtone());
   }
   Hooks.callAll(UPDATE_HOOK);
 }
@@ -235,6 +269,14 @@ export async function documentOperation(op, data = {}) {
   const result = await socket.executeAsGM('documentOperation', { op, ...data });
   await refreshState();
   return result;
+}
+export async function conferenceOperation(op, data = {}) {
+  requireGM();
+  const result = await socket.executeAsGM('conferenceOperation', { ...data, op });
+  await refreshState(); return result;
+}
+export function noteOperation(op, data = {}) {
+  requireGM(); return socket.executeAsGM('noteOperation', { ...data, op });
 }
 
 /* --------------------------------------------------------- вызовы клиента */

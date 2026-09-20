@@ -7,6 +7,7 @@ import { openAgent, closeAllAgents } from "./app-agent.mjs";
 import { openGMPanel } from "./app-gm.mjs";
 import { openHelp } from "./help.mjs";
 import { openWorkspace } from './workspace-app.mjs';
+import { openConferences } from './conferences-app.mjs';
 import { deliverScheduled } from './documents-service.mjs';
 import { terminalAllowed } from './documents-model.mjs';
 import * as M from "./model.mjs";
@@ -33,7 +34,7 @@ Hooks.once("ready", async () => {
   const mod = game.modules.get(MODULE_ID);
   if (mod) {
     mod.api = {
-      openAgent, openGMPanel, openWorkspace, openHelp, closeAllAgents, readState, model: M,
+      openAgent, openGMPanel, openWorkspace, openConferences, openHelp, closeAllAgents, readState, model: M,
       // Деньги и службы отданы наружу: их удобно дёргать макросами мастера.
       transferEb: Wealth.transfer,
       adjustEb: Wealth.adjust,

@@ -30,7 +30,7 @@ export class PrivateSocket {
   }
   async invoke(name, args, senderId) {
     if (!game.users.get(senderId)?.active) throw Error('Отправитель не подключён');
-    const clientHandler = ['deliver', 'refresh', 'terminalPush'].includes(name);
+    const clientHandler = ['deliver', 'conferenceDeliver', 'refresh', 'terminalPush'].includes(name);
     if (clientHandler ? !game.users.get(senderId)?.isGM : !game.user.isGM) throw Error('Операция доступна только мастеру');
     const handler = this.handlers.get(name);
     if (!handler) throw Error('Обновите Агент на всех клиентах');
@@ -44,7 +44,7 @@ export class PrivateSocket {
       clearTimeout(pending.timer); this.pending.delete(packet.response);
       packet.error ? pending.reject(Error(packet.error)) : pending.resolve(packet.value);
     } else if (packet.request && typeof packet.name === 'string' && Array.isArray(packet.args)) {
-      if (['snapshot','refresh','deliver','terminalPush'].includes(packet.name)) {
+      if (['snapshot','refresh','deliver','conferenceDeliver','terminalPush'].includes(packet.name)) {
         const result = await this.invoke(packet.name, packet.args, senderId)
           .then(value => ({ value }), error => ({ error: error.message || 'Операция отклонена' }));
         this.send(senderId, { response: packet.request, ...result }); return;

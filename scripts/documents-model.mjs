@@ -2,6 +2,7 @@
 import { normalize, threadKey, pushMessage } from './model.mjs';
 import { carrierAccess } from './carriers.mjs';
 import { documentImages } from './document-images.mjs';
+import { canAccessConference, conferenceProjection } from './conferences-model.mjs';
 export const clone = value => structuredClone(value);
 export const uid = () => [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2, '0')).join('');
 export function ownDevice(state, number, user) {
@@ -17,6 +18,7 @@ export function canReadDocument(state, doc, user, sceneId = '') {
   if (user?.isGM || doc.readers?.includes(user?.id)) return true;
   if (doc.holders?.some(num => state.devices[num]?.owner === user?.id)) return true;
   if (carrierAccess(doc, user)) return true;
+  if (Object.values(state.conferences ?? {}).some(room => canAccessConference(state, room, user) && room.messages.some(m => m.documentId === doc.id))) return true;
   return Object.values(state.terminals ?? {}).some(t => terminalAllowed(t, user, sceneId) &&
     t.entries?.some(entry => entry.documentId === doc.id && entry.published));
 }
@@ -25,6 +27,7 @@ export function projectState(state, user, sceneId = '') {
   if (user?.isGM) return state;
   const mine = new Set(Object.values(state.devices).filter(d => d.owner === user?.id).map(d => d.num));
   const out = { v: 1, devices: {}, threads: {}, read: {}, documents: {}, terminals: {}, organizer: {}, revision: state.revision ?? 0 };
+  if (state.conferences) out.conferences = conferenceProjection(state, user);
   // Only routing metadata is public. NPC device labels and other books stay with the GM.
   for (const [num, dev] of Object.entries(state.devices)) out.devices[num] = mine.has(num) ? clone(dev) : { num, owner: dev.owner };
   for (const [key, messages] of Object.entries(state.threads)) {
