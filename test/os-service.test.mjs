@@ -81,5 +81,5 @@ test('a call selected from history is not replaced by an unrelated active call',
  reset();const old=await run('callStart',{members:['2222-2222']});await run('callEnd',{id:old});
  await run('callStart',{members:['3333-3333']});
  const html=OSContext({num:'1111-1111',osTab:'calls',osCallId:old},state).osContent;
- assert.ok(html.includes('Разговор завершён'));assert.ok(!html.includes('Ожидание ответа'));
+ assert.ok(html.includes('Разговор завершён'));assert.ok(!html.includes('<h3>Ожидание ответа</h3>'));
 });

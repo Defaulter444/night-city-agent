@@ -123,6 +123,7 @@
 .os-call-members h3 {margin:8px 0;}
 .os-call-members small {color:var(--nca-muted);}
 .os-call-stage>.os-actions {justify-content:center;}
+.nca-os .os-call-list button {width:100%;justify-content:flex-start;text-align:left;white-space:normal;overflow-wrap:anywhere;margin-bottom:7px;}
 .os-profile {display:flex;align-items:center;gap:17px;}
 .os-profile .os-avatar {width:85px;height:100px;}
 .os-switch {display:flex;align-items:center;gap:10px;margin:10px 0;}

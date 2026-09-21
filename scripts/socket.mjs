@@ -9,7 +9,7 @@
 import { MODULE_ID, readState, mutate, defaultRingtone, stateForUser, acceptProjection, protectedStorage, initializeStorage } from "./store.mjs";
 import { PrivateSocket } from './private-socket.mjs';
 import { runDocumentOperation } from './documents-service.mjs';
-import { handleWealth, handleTransfer } from "./wealth.mjs";
+import { handleWealth, handleTransfer, handleNPCPayment } from "./wealth.mjs";
 import * as M from "./model.mjs";
 import * as Img from "./images.mjs";
 import { getFilePicker } from "./foundry-compat.mjs";
@@ -76,6 +76,7 @@ export function registerSocket() {
   socket.register('sendMailing', gmSendMailing);
   socket.register("adjustWealth", function(data) { return ledgerResult(() => handleWealth(data, this.socketdata.userId)); });
   socket.register("transferWealth", function(data) { return ledgerResult(() => handleTransfer(data, this.socketdata.userId)); });
+  socket.register('npcPayment', function(data) { return ledgerResult(() => handleNPCPayment(data,this.socketdata.userId)); });
   socket.register("sendImage", gmSendImage);
   socket.register("setBook", gmSetBook);
   socket.register("markRead", gmMarkRead);

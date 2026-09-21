@@ -7,8 +7,8 @@ import { uid, canEditDocument } from './documents-model.mjs';
 import { shrinkImage, ALLOWED_TYPES } from './images.mjs';
 import { esc, now as clockNow } from './clock.mjs';
 import { openNoteResult } from './notes.mjs';
-import { JOB_STATES, PLACE_TYPES, OS_TABS } from './os-model.mjs';
-import { actorForDevice, transfer, hasLedger } from './wealth.mjs';
+import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP } from './os-model.mjs';
+import { actorForDevice, transfer, hasLedger, isNPCDevice, payFromNPC } from './wealth.mjs';
 import { clearOpenThread } from './presence.mjs';
 import { stopRing, ringKey } from './ringtone.mjs';
 const field=(name,label,value='',type='text',extra='')=>`<label>${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
@@ -56,6 +56,8 @@ export async function performOS(app,event,target) {
     if(op==='documentSelect'){app.osDocId=target.dataset.id;return;}
     if(op==='placeSelect'||op==='gotoPlace'){app.osPlaceId=target.dataset.id;app.osTab='map';return;}
     if(op==='callSelect'){app.osCallId=target.dataset.id;return;}
+    if(op==='callScope'){if(!user.isGM)throw Error('Доступно только мастеру');app.osCallScope=target.dataset.scope==='mine'?'mine':'all';app.osCallId=null;return;}
+    if(op==='callFilter'){app.osCallFilter=target.dataset.filter;app.osCallId=null;return;}
     if(op.startsWith('zoom')){app.osZoom=op==='zoomReset'?1:Math.max(1,Math.min(4,(app.osZoom||1)+(op==='zoomIn'?.5:-.5)));return;}
     if(op==='workspace'){openWorkspace({number,tab:target.dataset.tab||'files'});return;}
     if(op==='favorite'||op==='contact') {
@@ -85,6 +87,7 @@ export async function performOS(app,event,target) {
       const old=os.map??{};
       await inputDialog('Карта и город',field('title','Название карты',old.title||'Найт-Сити')+field('location','Текущее место группы',old.location)+field('weather','Погода в вашей кампании',old.weather)+imageFields(old.image||''),async fd=>mutate('map',{title:fd.get('title'),location:fd.get('location'),weather:fd.get('weather'),image:await imageValue(fd,old.image,4000000)}));return;
     }
+    if(op==='defaultMap'){await mutate('map',{...os.map,title:'Найт-Сити 2045',image:DEFAULT_CITY_MAP});app.osZoom=1;return;}
     if(op==='reminder') {
       await inputDialog('Напоминание',field('title','О чём напомнить','','text','required')+field('minutes','Через сколько минут',30,'number','min="1" max="525600" required')+select('clock','По каким часам',{world:'Игровое время Foundry',real:'Реальное время'},'world')+'<p class="hint">Напоминание появится при достижении срока. Игровые часы продвигает мастер.</p>',fd=>{
         const minutes=Number(fd.get('minutes'));if(!Number.isFinite(minutes)||minutes<1||minutes>525600)throw Error('От 1 до 525600 минут');
@@ -129,6 +132,16 @@ export async function performOS(app,event,target) {
       await openNoteResult({journalId:game.settings.get(MODULE_ID,'noteJournals')?.[owner],pageId:target.dataset.page});return;
     }
     if(op==='pay') {
+      if(user.isGM&&isNPCDevice(state.devices[number])) {
+        const recipients=Object.values(state.devices).filter(d=>d.owner&&game.users.get(d.owner)&&!game.users.get(d.owner).isGM);
+        const choices=Object.fromEntries(recipients.map(d=>[d.num,`${d.label||contactLabel(state,number,d.num)} · ${d.num}`]));
+        const sources=Object.fromEntries(game.actors.filter(hasLedger).map(a=>[a.uuid,`${a.name} · ${a.system.wealth.value} эдди`]));
+        const operationId=uid(),label=os.profiles?.[number]?.name||state.devices[number].label||number;
+        await inputDialog('Выплата от НПС',`<p>Отправитель: <strong>${esc(label)} · ${esc(number)}</strong></p>`+select('to','Агент игрока',{'':'Выберите получателя',...choices},target.dataset.num||app.other||'')+field('amount','Сумма',1,'number','min="1" step="1" required')+select('sourceUuid','Источник средств',{'':'Выплата мастера — без списания',...sources},'')+field('note','Назначение платежа')+'<p class="hint">Без списания: мастер начисляет сумму от имени НПС. Если выбрать лист, сумма спишется с его счёта. Получателю деньги зачисляются сразу; в истории сохранятся имя и номер НПС.</p>',async fd=>{
+          const result=await payFromNPC({from:number,to:fd.get('to'),amount:Number(fd.get('amount')),sourceUuid:fd.get('sourceUuid'),note:fd.get('note'),operationId});
+          ui.notifications.info(`${result.replayed?'Уже зачислено':'Зачислено'}: ${result.amount} эдди · ${result.actorName}`);
+        },{saveLabel:'Перевести'});return;
+      }
       const actor=actorForDevice(state.devices[number]);if(!actor||!hasLedger(actor))throw Error('Назначьте персонажа владельцу Агента');
       await inputDialog('Перевести эдди',field('to','Номер получателя',target.dataset.num||app.other||'')+field('amount','Сумма',1,'number','min="1" step="1" required')+field('note','Назначение платежа'),async fd=>{
         const to=normalizeNumber(fd.get('to')),device=state.devices[to];

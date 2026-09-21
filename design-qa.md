@@ -48,3 +48,17 @@ All ten navigation destinations were opened at both widths. Measured page/naviga
 ## Result
 
 **PASS for the local adaptive implementation and the tested flows.** No unresolved P0/P1/P2 findings within this scope. Not all illustrated product concepts are implemented: live audio/video, automatic street routing, audio recording and full calendar integration remain separate work. The user-facing guide lists these boundaries. Working worlds are not seeded with demonstration content.
+
+## Local GM update — 0.15.0-local.2
+
+Date: 2026-09-21. Evidence: `work/agent-os-gm-2026-09-21/evidence/` relative to the workspace. Tested in the isolated Foundry 12.331 world, not a working campaign.
+
+- NPC payout without a source sheet credited 250 to a test player's character (50 → 300) while the selected test source stayed at 1000. An explicit-source payment of 125 then produced balances 875 / 425. Both recipient ledger entries identify the NPC name, number and purpose. The NPC wallet lists both payments. Evidence: `native-payments.json` and `wallet-wide.png` / `wallet-narrow.png`.
+- An attempted payment of 2000 from the 875 source displayed an inline insufficient-funds error, retained the form, and changed neither balance nor payment receipts. The successful payments survived reload. Evidence: `payment-validation.png`, `native-after-validation.json`.
+- From an unrelated NPC device, the GM saw a player-to-player call, participants, replies, initiator, time and status. All/current-device scopes, active filter and number search worked. The GM ended that call without joining or changing members. The GM-panel shortcut opened the complete call history. Evidence: `calls-wide.png`, `calls-narrow.png`, `native-calls-ended.json`.
+- The existing custom map survived upgrade. “Карта 2045” loaded the supplied PNG at its original 3066 × 2408 resolution. Existing place data remained accessible; 150% zoom and reset worked. The zoom control now displays the current scale. Evidence: `map-wide.png`, `map-narrow.png`.
+- The three screens were checked at application widths 1100 and 550 pixels. Narrow page width and scroll width were both 526 pixels; enlarged map scrolling is confined to its viewport. Navigation and primary actions remain usable.
+- Full automated suite: **82 passed, 0 failed** (`tests-full.txt`). Includes authenticated GM-only payouts, concurrent retry protection, rejected altered receipts, no duplicate credit after a character change, invalid destinations and sums, failed-credit refund/retry, call visibility and permissions, and preservation of custom maps and legacy data.
+- The test world's minimal module set reports a pre-existing missing `ru` core-language configuration and falls back to English Foundry chrome. Agent UI remains Russian; no new Agent browser error was observed (`console.json`). Native verification used one GM browser. Player authorization is covered by service/model tests rather than claimed as a simultaneous player session.
+
+No live audio/video monitoring is added. Publication to GitHub is outside this local update.

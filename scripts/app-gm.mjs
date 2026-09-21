@@ -133,6 +133,7 @@ async function onRemove(event, target) {
 async function onOpen(event, target) {
   openAgent({ num: target.dataset.num });
 }
+function onCalls() { openAgent({tab:'calls',callScope:'all'}); }
 
 async function onWatch(event, target) {
   this.watching = target.dataset.key;
@@ -228,6 +229,7 @@ export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
       pickRingtone: onPickRingtone,
       playRingtone: onPlayRingtone,
       silence: onSilence,
+      calls: onCalls,
       sweepImages: onSweepImages,
       help: onHelp
     }

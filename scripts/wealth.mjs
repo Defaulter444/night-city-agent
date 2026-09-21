@@ -10,7 +10,8 @@
  * кнопку дважды, окно могло отрисоваться повторно — расписка гарантирует, что
  * в журнале появится ровно одна строка.
  */
-import { MODULE_ID } from "./store.mjs";
+import { MODULE_ID, readState } from "./store.mjs";
+import { normalizeNumber } from './model.mjs';
 import { now, clockHTML, clockFlag, esc } from "./clock.mjs";
 
 const RECEIPTS = "transactionReceipts";
@@ -87,7 +88,7 @@ export async function adjustRaw(actor, delta, reason = "Перевод чере�
   if (!game.user.isGM) return remote("adjustWealth", { actorUuid: actor.uuid, delta, reason, receiptId });
   return serial(() => adjustLocal(actor, delta, reason, receiptId));
 }
-async function adjustLocal(actor, delta, reason, receiptId) {
+async function adjustLocal(actor, delta, reason, receiptId, extraUpdates = {}) {
   if (!hasLedger(actor)) throw new Error(`У «${actor?.name ?? "актёра"}» нет счёта Cyberpunk RED`);
 
   if (receiptId && foundry.utils.getProperty(actor, `flags.${MODULE_ID}.${RECEIPTS}.${receiptId}`)) return false;
@@ -103,7 +104,7 @@ async function adjustLocal(actor, delta, reason, receiptId) {
     reason
   ]);
 
-  const update = { "system.wealth": wealth };
+  const update = { ...extraUpdates, "system.wealth": wealth };
   if (receiptId) {
     const receipts = foundry.utils.deepClone(foundry.utils.getProperty(actor, `flags.${MODULE_ID}.${RECEIPTS}`) ?? {});
     receipts[receiptId] = Date.now();
@@ -179,6 +180,61 @@ async function transferLocal(fromActor, toActor, amount, note, caller) {
     throw error;
   }
   return sum;
+}
+
+/** An NPC Agent may represent a contact without a dedicated character sheet. */
+export function isNPCDevice(device) {
+  return Boolean(device && (!device.owner || game.users.get(device.owner)?.isGM));
+}
+
+export async function payFromNPC(data) {
+  return remote('npcPayment',data);
+}
+
+/** GM-only adjudicated payout, or a debit from an explicitly selected sheet.
+ * The receipt and credit share one Actor update, so retries cannot pay twice.
+ */
+export async function handleNPCPayment(data,callerId) {
+  const caller=game.users.get(callerId);
+  if(!caller?.isGM)throw Error('Выплаты от имени НПС доступны только мастеру');
+  const from=normalizeNumber(data.from),to=normalizeNumber(data.to),amount=Number(data.amount);
+  const operationId=String(data.operationId??''),sourceUuid=String(data.sourceUuid??''),note=String(data.note??'').trim().slice(0,300);
+  if(!/^[a-f0-9]{32}$/.test(operationId))throw Error('Некорректный номер операции');
+  if(!Number.isSafeInteger(amount)||amount<=0)throw Error('Укажите положительную целую сумму');
+  return serial(async()=>{
+    const state=readState(),sender=state.devices[from],receiver=state.devices[to];
+    if(!isNPCDevice(sender))throw Error('Выберите Агент НПС');
+    const owner=game.users.get(receiver?.owner);
+    if(!owner||owner.isGM)throw Error('Получателем должен быть Агент игрока');
+    const receipt={from,to,amount,note,sourceUuid,callerId};
+    // Find committed receipts even if the owner selected another character
+    // between a successful credit and a network retry.
+    for(const recordedActor of game.actors){
+      const old=foundry.utils.getProperty(recordedActor,`flags.${MODULE_ID}.npcPayments.${operationId}`);
+      if(!old)continue;
+      if(Object.keys(receipt).some(k=>receipt[k]!==old[k]))throw Error('Эта операция уже сохранена с другими реквизитами');
+      return {amount,actorName:recordedActor.name,replayed:true};
+    }
+    const target=actorForUser(owner.id);
+    if(!hasLedger(target)||!target.testUserPermission(owner,'OWNER'))throw Error('Назначьте получателю принадлежащего ему персонажа со счётом Cyberpunk RED');
+    if(Math.abs(Number(target.system.wealth.value)+amount)>Number.MAX_SAFE_INTEGER)throw Error('Сумма превышает допустимый размер счёта');
+    const receipts=foundry.utils.deepClone(foundry.utils.getProperty(target,`flags.${MODULE_ID}.npcPayments`)??{});
+    const source=sourceUuid?await fromUuid(sourceUuid):null;
+    if(sourceUuid&&!hasLedger(source))throw Error('У выбранного источника нет счёта Cyberpunk RED');
+    if(source?.uuid===target.uuid)throw Error('Источник и получатель должны быть разными');
+    if(source&&Number(source.system.wealth.value)<amount)throw Error(`На счету «${source.name}» только ${source.system.wealth.value} эдди`);
+    const label=state.os?.profiles?.[from]?.name||sender.label||from;
+    const reason=`Перевод от НПС «${label}» (${from})${note?' — '+note:''}`;
+    if(source)await adjustLocal(source,-amount,`${reason} для «${target.name}»`,foundry.utils.randomID(24));
+    receipts[operationId]={...receipt,createdAt:Date.now()};
+    try{
+      await adjustLocal(target,amount,reason,`npc-${operationId}`,{[`flags.${MODULE_ID}.npcPayments`]:receipts});
+    }catch(error){
+      if(source)await adjustLocal(source,amount,'Возврат: выплата НПС не доставлена',foundry.utils.randomID(24));
+      throw error;
+    }
+    return {amount,actorName:target.name,replayed:false};
+  });
 }
 
 /** Кнопка «Зачислить» в карточке чата. Вешается один раз за сеанс. */

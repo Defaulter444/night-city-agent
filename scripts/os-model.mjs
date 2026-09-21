@@ -9,6 +9,11 @@ const safeId = key => { if (['__proto__','prototype','constructor'].includes(key
 export const OS_TABS = [['home','Главная','house'],['contacts','Контакты','address-book'],['messages','Сообщения','comments'],['map','Карта','map-location-dot'],['wallet','Кошелёк','wallet'],['jobs','Задания','list-check'],['files','Файлы','folder-open'],['news','Data Pool','globe'],['calls','Вызовы','phone'],['settings','Настройки','gear']];
 export const JOB_STATES = { planned:'Запланировано', active:'В работе', blocked:'Приостановлено', done:'Завершено', archived:'Архив' };
 export const PLACE_TYPES = { place:'Место', fixer:'Фиксер', shop:'Магазин', clinic:'Клиника', home:'Убежище', transit:'Транспорт', danger:'Опасность' };
+export const DEFAULT_CITY_MAP='modules/night-city-agent/assets/night-city-2045.png';
+export function cityMap(state) { return {title:'Найт-Сити 2045',...state.os?.map,image:state.os?.map?.image||DEFAULT_CITY_MAP}; }
+export function callsForViewer(state,user,number,scope='all') {
+  return Object.values(state.os?.calls??{}).filter(c=>user?.isGM&&scope==='all'||c.members.includes(number)&&(user?.isGM||state.devices[number]?.owner===user?.id)).sort((a,b)=>Number(a.status==='ended')-Number(b.status==='ended')||b.createdAt-a.createdAt);
+}
 export function ownOSDevice(state, number, user) {
   if (!NUMBER_RE.test(number ?? '') || !state.devices[number] || !user || (!user.isGM && state.devices[number].owner !== user.id)) throw Error('Это не ваше устройство');
   return state.devices[number];
@@ -120,7 +125,7 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
     return rid;
   }
   if (['callReply','callEnd','callInvite'].includes(op)) {
-    const call=os.calls?.[data.id]; if (!call || !call.members.includes(number) || call.status==='ended') throw Error('Вызов недоступен');
+    const call=os.calls?.[data.id]; if (!call || (!call.members.includes(number)&&!(op==='callEnd'&&user.isGM)) || call.status==='ended') throw Error('Вызов недоступен');
     if (op==='callEnd') { if(call.from!==number && !user.isGM) throw Error('Завершить общий вызов может инициатор'); call.status='ended'; call.endedAt=now; return call.id; }
     if (op==='callInvite') {
       if(call.replies[number]!=='accepted') throw Error('Сначала примите вызов');
