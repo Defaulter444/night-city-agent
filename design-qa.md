@@ -62,3 +62,7 @@ Date: 2026-09-21. Evidence: `work/agent-os-gm-2026-09-21/evidence/` relative to 
 - The test world's minimal module set reports a pre-existing missing `ru` core-language configuration and falls back to English Foundry chrome. Agent UI remains Russian; no new Agent browser error was observed (`console.json`). Native verification used one GM browser. Player authorization is covered by service/model tests rather than claimed as a simultaneous player session.
 
 No live audio/video monitoring is added. Publication to GitHub is outside this local update.
+
+## Release promotion — 0.15.0
+
+The user subsequently requested publication to GitHub. Version 0.15.0 promotes the tested local builds above; publication changes the version, installation URL, changelog and documentation. Application behavior remains the same as 0.15.0-local.2. The historical local-only scope statements above describe the original verification runs. Release preparation reruns the automated suite and verifies the manifest, archive contents and public downloads. Evidence directory: `work/agent-os-release-2026-09-21/evidence/`.
