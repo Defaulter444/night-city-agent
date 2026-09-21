@@ -2,7 +2,7 @@
   "id": "night-city-agent",
   "title": "Агент (Найт-Сити)",
   "description": "Внутриигровой мессенджер «Агент» для Cyberpunk RED: устройства с номерами, адресная книга, переписка между игроками под надзором мастера, переводы эдди и вызов экстренных служб.",
-  "version": "0.16.0-local.1",
+  "version": "0.16.0",
   "compatibility": {
     "minimum": "12",
     "verified": "12.331"
@@ -41,6 +41,16 @@
         "compatibility": {
           "minimum": "1.0.13"
         }
+      },
+      {
+        "id": "foundryvtt-simple-calendar",
+        "type": "module",
+        "manifest": "https://github.com/vigoren/foundryvtt-simple-calendar/releases/download/v2.4.18/module.json",
+        "compatibility": {
+          "minimum": "2.4.18",
+          "verified": "2.4.18"
+        },
+        "reason": "Общие игровые часы, даты сообщений и напоминания Агента."
       }
     ]
   },
@@ -60,5 +70,5 @@
   ],
   "url": "https://github.com/Defaulter444/night-city-agent",
   "manifest": "https://github.com/Defaulter444/night-city-agent/releases/latest/download/module.json",
-  "download": "https://github.com/Defaulter444/night-city-agent/releases/download/v0.15.1/night-city-agent.zip"
+  "download": "https://github.com/Defaulter444/night-city-agent/releases/download/v0.16.0/night-city-agent.zip"
 }
