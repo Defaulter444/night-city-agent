@@ -17,6 +17,8 @@ import { callREO, callTrauma, inspectLifestyle, findMembership } from "./service
 import { openWorkspace, inputDialog } from './workspace-app.mjs';
 import { esc } from './clock.mjs';
 import { noteOwner, openNoteResult } from './notes.mjs';
+import { OSContext, contactPortrait } from './os-view.mjs';
+import { performOS, OSRender, selectOSDocument } from './os-controller.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 function hhmm(ts) {
@@ -197,6 +199,7 @@ async function onNewContact() {
     return;
   }
   this.other = num;
+  this.osTab = 'messages';
   this.render();
 }
 
@@ -367,6 +370,7 @@ async function modernAction(event, target) {
   try {
     const state = storageLocked() ? null : readState();
     switch (target.dataset.action) {
+      case 'osAction': await performOS(this,event,target); return;
       case 'mailing': {
         if (this.mailingOpen) return;
         if (!state) throw Error('Сначала откройте хранилище');
@@ -392,9 +396,9 @@ async function modernAction(event, target) {
         const owner = noteOwner(state, this.num, game.user), id = game.settings.get('night-city-agent', 'noteJournals')?.[owner];
         await openNoteResult(id ? { journalId: id } : null); return;
       }
-      case 'files': await this.saveDraft(); openWorkspace({ number: this.num, recipient: this.other, tab: 'files' }); return;
+      case 'files': await this.saveDraft(); this.osTab='files'; break;
       case 'data': openWorkspace({ tab: 'storage' }); return;
-      case 'openDocument': openWorkspace({ number: this.num, documentId: target.dataset.id, tab: 'files' }); return;
+      case 'openDocument': await this.saveDraft(); selectOSDocument(this,target.dataset.id); break;
       case 'pin': await documentOperation('organize', { number: this.num, other: this.other, pin: Number(target.dataset.index) }); break;
       case 'pins': this.onlyPins = !this.onlyPins; break;
       case 'tags': await inputDialog('Метки контакта', `<label>До шести меток через запятую<input name="tags" value="${esc((state.organizer?.[this.num]?.tags?.[this.other] ?? []).join(', '))}"></label>`,
@@ -419,6 +423,9 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.num = num;
     this.other = other;
     this.closing = false;
+    this.osTab = options.tab || (other ? 'messages' : 'home');
+    this.osCompact = Boolean(game.settings.get('night-city-agent','osCompact'));
+    this.osReducedMotion = Boolean(game.settings.get('night-city-agent','osReducedMotion'));
     this.drafts = {}; this.search = ''; this.onlyPins = false;
     // Перерисовка и закрытие стоят в одной очереди (семафор ApplicationV2).
     // Без флага перерисовка, поставленная в очередь во время закрытия,
@@ -445,9 +452,9 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       icon: "fa-solid fa-mobile-screen-button",
       resizable: true
     },
-    position: { width: 920, height: 650 },
+    position: { width: 1100, height: 780 },
     actions: {
-      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact','conferences','newNote','notes','mailing'].map(n => [n,modernAction])),
+      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact','conferences','newNote','notes','mailing','osAction'].map(n => [n,modernAction])),
       pickDevice: onPickDevice,
       pickContact: onPickContact,
       send: onSend,
@@ -468,7 +475,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static PARTS = {
     body: {
       template: "modules/night-city-agent/templates/agent-modern.hbs",
-      scrollable: [".nca-contacts", ".nca-thread"]
+      scrollable: [".nca-contacts", ".nca-thread", ".os-page"]
     }
   };
 
@@ -483,7 +490,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       : M.devicesOfUser(state, game.user.id);
     owned.sort((a, b) => a.num.localeCompare(b.num));
 
-    if (!this.num || !state.devices[this.num]) this.num = owned[0]?.num ?? null;
+    if (!owned.some(d=>d.num===this.num)) this.num = owned[0]?.num ?? null;
     const device = this.num ? state.devices[this.num] : null;
 
     const contacts = this.num ? M.contactsFor(state, this.num) : [];
@@ -511,6 +518,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       : [];
 
     return {
+      ...OSContext(this,state),
       isGM, search: this.search, onlyPins: this.onlyPins, contactCount: contacts.length,
       draft: this.drafts[`${this.num}|${this.other}`] ?? state.organizer?.[this.num]?.drafts?.[this.other] ?? '',
       tags: state.organizer?.[this.num]?.tags?.[this.other] ?? [],
@@ -530,7 +538,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
         label: d.label || (d.kind === M.KIND.INTERNAL ? "внутренний" : "агент"),
         selected: d.num === this.num
       })),
-      contacts: contacts.map(c => ({ ...c, selected: c.num === this.other, tags: state.organizer?.[this.num]?.tags?.[c.num] ?? [], searchText: [c.name,c.num,...(state.organizer?.[this.num]?.tags?.[c.num] ?? []),...M.thread(state,this.num,c.num).map(m => m.x)].join(' ') })),
+      contacts: contacts.map(c => ({ ...c, avatar:contactPortrait(state,this.num,c.num), selected: c.num === this.other, tags: state.organizer?.[this.num]?.tags?.[c.num] ?? [], searchText: [c.name,c.num,...(state.organizer?.[this.num]?.tags?.[c.num] ?? []),...M.thread(state,this.num,c.num).map(m => m.x)].join(' ') })),
       active: this.other,
       activeName: this.other ? M.contactLabel(state, this.num, this.other) : "",
       activeBookName: this.other ? M.bookName(state, this.num, this.other) : "",
@@ -549,6 +557,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    OSRender(this);
 
     const search = this.element.querySelector('.nca-search');
     const filter = () => {
@@ -626,7 +635,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Сообщаем доставке, на какую переписку игрок сейчас смотрит:
     // пришедшее в неё сообщение не звонит и сразу считается прочитанным.
     clearOpenThread(this.num);
-    if (this.num && this.other) {
+    if ((!this.osTab || this.osTab === 'messages') && this.num && this.other) {
       setOpenThread(this.num, this.other);
       if (!this._markingRead && M.unreadCount(readState(),this.num,this.other)>0 && game.users.activeGM) {
         this._markingRead = true;
@@ -644,6 +653,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _preClose(options) {
+    clearInterval(this.osTimer);
     this.closing = true;
     try { await this.saveDraft(); } catch (e) { this.closing = false; ui.notifications.error(`Черновик не сохранён: ${e.message}`); throw e; }
     Hooks.off(UPDATE_HOOK, this._onUpdate);
@@ -668,7 +678,8 @@ export function openAgent(opts = {}) {
   const key = opts.num ?? "self";
   const existing = instances.get(key);
   if (existing?.rendered) {
-    if (opts.other) existing.other = opts.other;
+    if (opts.other) { existing.other = opts.other; existing.osTab='messages'; }
+    if (opts.tab) existing.osTab=opts.tab;
     existing.bringToFront();
     existing.render();
     return existing;

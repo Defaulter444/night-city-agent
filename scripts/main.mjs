@@ -14,9 +14,11 @@ import * as M from "./model.mjs";
 import * as Wealth from "./wealth.mjs";
 import * as Services from "./services.mjs";
 import * as Clock from "./clock.mjs";
+import { checkOSReminders } from './os-controller.mjs';
 
 Hooks.once("init", () => {
   registerSettings();
+  for (const [key,name] of [['osCompact','Агент: компактный корпус'],['osReducedMotion','Агент: уменьшить эффекты']]) game.settings.register(MODULE_ID,key,{name,scope:'client',config:false,type:Boolean,default:false});
   console.log("night-city-agent | настройки зарегистрированы");
 });
 
@@ -54,6 +56,8 @@ Hooks.once("ready", async () => {
     catch (error) { console.error('night-city-agent | расписание', error); }
   };
   setInterval(tick, 15000);
+  setInterval(checkOSReminders,15000);
+  Hooks.on('updateWorldTime',checkOSReminders);
   Hooks.on('updateWorldTime', tick);
   Hooks.on('canvasReady', () => refreshState().then(() => Hooks.callAll(UPDATE_HOOK)).catch(() => {}));
   Hooks.on('updateUser', () => refreshState().then(() => Hooks.callAll(UPDATE_HOOK)).catch(() => {}));

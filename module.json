@@ -2,7 +2,7 @@
   "id": "night-city-agent",
   "title": "Агент (Найт-Сити)",
   "description": "Внутриигровой мессенджер «Агент» для Cyberpunk RED: устройства с номерами, адресная книга, переписка между игроками под надзором мастера, переводы эдди и вызов экстренных служб.",
-  "version": "0.14.0",
+  "version": "0.15.0-local.1",
   "compatibility": {
     "minimum": "12",
     "verified": "12.331"
@@ -23,7 +23,8 @@
   ],
   "styles": [
     "styles/agent.css",
-    "styles/agent-modern.css"
+    "styles/agent-modern.css",
+    "styles/agent-os.css"
   ],
   "languages": [
     {
@@ -59,5 +60,5 @@
   ],
   "url": "https://github.com/Defaulter444/night-city-agent",
   "manifest": "https://github.com/Defaulter444/night-city-agent/releases/latest/download/module.json",
-  "download": "https://github.com/Defaulter444/night-city-agent/releases/download/v0.14.0/night-city-agent.zip"
+  "download": ""
 }

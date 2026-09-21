@@ -18,6 +18,8 @@ import { runNoteOperation } from './notes.mjs';
 import { npcIncoming, incomingLabel } from './incoming.mjs';
 import { conferenceKey } from './conferences-model.mjs';
 import { createMailing } from './mailing-model.mjs';
+import { applyOSOperation } from './os-model.mjs';
+import { canReadDocument } from './documents-model.mjs';
 
 export const UPDATE_HOOK = "nightCityAgentUpdate";
 
@@ -34,6 +36,21 @@ export function registerSocket() {
   if (socket) return socket;
   socket = new PrivateSocket();
   socket.register('snapshot', function() { return stateForUser(this.socketdata.userId); });
+  socket.register('osOperation', async function(data) {
+    const user = game.users.get(this.socketdata.userId);
+    let recipients=[];
+    const result = await mutate(state => {
+      if (data.op === 'fileMeta' && !canReadDocument(state,state.documents?.[data.id],user,user?.viewedScene)) throw Error('Файл недоступен');
+      const previous=new Set(state.os?.calls?.[data.id]?.members??[]);
+      const value=applyOSOperation(state,data,user);
+      if (['callStart','callInvite'].includes(data.op)) recipients=state.os.calls[value].members.filter(n=>n!==data.number&&!previous.has(n));
+      return value;
+    });
+    if (['callStart','callInvite'].includes(data.op)) {
+      await Promise.allSettled(recipients.map(to=>deliverDirect(data.number,to,this.socketdata.userId)));
+    }
+    await broadcastRefresh(); return result;
+  });
   socket.register('documentOperation', async function(data) {
     const result = await runDocumentOperation(data, this.socketdata.userId);
     if (['sendDocument', 'shareContact'].includes(data.op)) await deliverDirect(data.from, data.to, this.socketdata.userId);
@@ -70,6 +87,10 @@ export function registerSocket() {
 
 export function getSocket() {
   return socket;
+}
+
+export async function osOperation(op,data={}) {
+  requireGM(); const result=await socket.executeAsGM('osOperation',{...data,op}); await refreshState(); return result;
 }
 
 async function notifyUsers(name, ids, ...args) {

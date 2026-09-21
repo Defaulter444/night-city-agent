@@ -140,7 +140,7 @@ export function imageFolder(worldId) {
  * @param {Object} limits - {maxSide, maxBytes}
  * @returns {Promise<String>} - data-URL
  */
-export async function shrinkImage(file, { maxSide = MAX_SIDE, maxBytes = MAX_BYTES } = {}) {
+export async function shrinkImage(file, { maxSide = MAX_SIDE, maxBytes = MAX_BYTES, outputType = null } = {}) {
   const original = await readAsDataUrl(file);
   if (file.type === "image/gif") {
     const issue = imageIssue(original, maxBytes);
@@ -158,7 +158,7 @@ export async function shrinkImage(file, { maxSide = MAX_SIDE, maxBytes = MAX_BYT
   // Прозрачность бывает нужна — например, скан документа с вырезанным фоном,
   // — поэтому png остаётся png. Всё остальное уходит в webp: он заметно легче
   // при том же виде.
-  const type = file.type === "image/png" ? "image/png" : "image/webp";
+  const type = outputType === 'image/webp' ? 'image/webp' : file.type === "image/png" ? "image/png" : "image/webp";
   for (const quality of [0.85, 0.7, 0.55, 0.4]) {
     const url = canvas.toDataURL(type, quality);
     if (base64Bytes(parseDataUrl(url)?.base64) <= maxBytes) return url;
