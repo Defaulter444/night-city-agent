@@ -80,3 +80,7 @@ Date: 2026-09-21. Local update only. Evidence: `work/agent-map-2026-09-21/eviden
 - **89 automated tests passed**, including map geometry, GM permissions, failed-save rollback and preservation of existing mission data. Native checks used a GM client in an isolated test world; player permissions were checked through the model and authenticated service tests. No new browser error was observed in the final run.
 
 Production worlds are not seeded or migrated. Existing percentage coordinates are used as-is. Full release publication is not part of this local map update.
+
+## Release promotion — 0.15.1
+
+The user requested publication of the tested map update. Version 0.15.1 has the same application behavior as 0.15.1-local.1; only release metadata, changelog and documentation change. The automated suite, packaged file contents and public download URLs are verified for publication. Evidence: `work/agent-map-release-2026-09-21/evidence/`. The local-only statements above describe the original implementation and verification run.
