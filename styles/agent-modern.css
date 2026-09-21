@@ -217,6 +217,7 @@
 .nca-input-dialog .dialog-content { overflow:auto; min-height:0; }
 .nca-input-dialog .dialog-buttons { flex:none; }
 .nca-member-picker { max-height:300px; overflow:auto; border:1px solid #685560; }
+.nca-member-picker.nca-mailing-picker { max-height:190px; }
 .nca-dialog .nca-member-choice { display:flex; flex-direction:row; align-items:center; gap:10px; }
 .nca-dialog .nca-member-choice input { flex:none; width:18px; height:18px; margin:0; }
 .nca-member-choice span { min-width:0; overflow-wrap:anywhere; }

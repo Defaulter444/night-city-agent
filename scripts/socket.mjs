@@ -17,6 +17,7 @@ import { runConferenceOperation } from './conferences-service.mjs';
 import { runNoteOperation } from './notes.mjs';
 import { npcIncoming, incomingLabel } from './incoming.mjs';
 import { conferenceKey } from './conferences-model.mjs';
+import { createMailing } from './mailing-model.mjs';
 
 export const UPDATE_HOOK = "nightCityAgentUpdate";
 
@@ -55,6 +56,7 @@ export function registerSocket() {
     openWorkspace({ terminalId: id, tab: 'terminals' });
   });
   socket.register("send", gmSend);
+  socket.register('sendMailing', gmSendMailing);
   socket.register("adjustWealth", function(data) { return ledgerResult(() => handleWealth(data, this.socketdata.userId)); });
   socket.register("transferWealth", function(data) { return ledgerResult(() => handleTransfer(data, this.socketdata.userId)); });
   socket.register("sendImage", gmSendImage);
@@ -238,6 +240,13 @@ async function clientDeliver({ from, to, ringtone, senderId }) {
   Hooks.callAll(UPDATE_HOOK);
 }
 
+async function gmSendMailing(data) {
+  const callerId = this.socketdata.userId;
+  const result = await mutate(state => createMailing(state, data, game.users.get(callerId)));
+  if (!result.replayed) await Promise.allSettled(result.recipients.map(to => deliverDirect(data.from, to, callerId)));
+  return result;
+}
+
 async function clientConferenceDeliver({ id, from, senderId }) {
   await refreshState();
   const state = readState(), room = state.conferences?.[id];
@@ -288,6 +297,13 @@ function requireGM() {
 export async function sendMessage(from, to, text) {
   requireGM();
   return socket.executeAsGM("send", { from, to, text });
+}
+
+export async function sendMailing(from, recipients, text, operationId) {
+  requireGM();
+  const result = await socket.executeAsGM('sendMailing', { from, recipients, text, operationId });
+  await refreshState();
+  return result;
 }
 
 /**

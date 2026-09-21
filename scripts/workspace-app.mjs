@@ -6,7 +6,7 @@ import { isStorageItem } from './documents-service.mjs';
 import { editDocumentDialog } from './document-editor.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const option = (value, label, selected = false) => `<option value="${esc(value)}" ${selected ? 'selected' : ''}>${esc(label)}</option>`;
-export function inputDialog(title, content, submit) {
+export function inputDialog(title, content, submit, { saveLabel = 'Сохранить' } = {}) {
   return new Promise(resolve => {
     class AgentInputDialog extends Dialog {
       async submit(button) {
@@ -25,7 +25,7 @@ export function inputDialog(title, content, submit) {
       async close(options) { if (!this.saving) return super.close(options); }
     }
     new AgentInputDialog({ title, content: `<form class="nca-dialog">${content}<p class="nca-form-error" role="alert" hidden></p></form>`,
-      buttons: { save: { label: 'Сохранить' }, cancel: { label: 'Отмена' } }, default: 'save', close: () => resolve(null)
+      buttons: { save: { label: saveLabel }, cancel: { label: 'Отмена' } }, default: 'save', close: () => resolve(null)
     }, { width: 500, classes: ['dialog', 'nca-input-dialog'] }).render(true);
   });
 }

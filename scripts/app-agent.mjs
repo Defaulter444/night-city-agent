@@ -367,6 +367,17 @@ async function modernAction(event, target) {
   try {
     const state = storageLocked() ? null : readState();
     switch (target.dataset.action) {
+      case 'mailing': {
+        if (this.mailingOpen) return;
+        if (!state) throw Error('Сначала откройте хранилище');
+        this.mailingOpen = true;
+        try {
+          const { mailingDialog } = await import('./mailing-dialog.mjs');
+          const result = await mailingDialog(this.num, this.other);
+          if (result) ui.notifications.info(`Агент: рассылка отправлена. Получателей: ${result.count}`);
+        } finally { this.mailingOpen = false; }
+        break;
+      }
       case 'conferences': {
         await this.saveDraft(); const { openConferences } = await import('./conferences-app.mjs');
         openConferences({ number: this.num }); return;
@@ -436,7 +447,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     },
     position: { width: 920, height: 650 },
     actions: {
-      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact','conferences','newNote','notes'].map(n => [n,modernAction])),
+      ...Object.fromEntries(['files','data','openDocument','pin','pins','tags','shareContact','acceptContact','conferences','newNote','notes','mailing'].map(n => [n,modernAction])),
       pickDevice: onPickDevice,
       pickContact: onPickContact,
       send: onSend,
