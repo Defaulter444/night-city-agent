@@ -5,7 +5,8 @@ import { editDocumentDialog } from './document-editor.mjs';
 import { contactLabel, contactsFor, normalizeNumber } from './model.mjs';
 import { uid, canEditDocument } from './documents-model.mjs';
 import { shrinkImage, ALLOWED_TYPES } from './images.mjs';
-import { esc, now as clockNow } from './clock.mjs';
+import { esc, makeDeadline, deadlineDue, deadlineRemaining } from './clock.mjs';
+import { clockAction, updateClockElements } from './clock-ui.mjs';
 import { openNoteResult } from './notes.mjs';
 import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP } from './os-model.mjs';
 import { actorForDevice, transfer, hasLedger, isNPCDevice, payFromNPC } from './wealth.mjs';
@@ -44,6 +45,7 @@ export async function performOS(app,event,target) {
   if(app.osBusy)return;
   app.osBusy=true;
   try {
+    if(op.startsWith('clock')){await clockAction(op,target);return;}
     await app.saveDraft();
     if(storageLocked())throw Error('Сначала откройте хранилище');
     const state=readState(),number=app.num,os=state.os??{},user=game.user;
@@ -95,7 +97,7 @@ export async function performOS(app,event,target) {
     if(op==='reminder') {
       await inputDialog('Напоминание',field('title','О чём напомнить','','text','required')+field('minutes','Через сколько минут',30,'number','min="1" max="525600" required')+select('clock','По каким часам',{world:'Игровое время Foundry',real:'Реальное время'},'world')+'<p class="hint">Напоминание появится при достижении срока. Игровые часы продвигает мастер.</p>',fd=>{
         const minutes=Number(fd.get('minutes'));if(!Number.isFinite(minutes)||minutes<1||minutes>525600)throw Error('От 1 до 525600 минут');
-        const clock=fd.get('clock');return mutate('reminder',{title:fd.get('title'),clock,due:(clock==='world'?Number(game.time.worldTime):Date.now()/1000)+minutes*60});
+        return mutate('reminder',{title:fd.get('title'),...makeDeadline(minutes,fd.get('clock'))});
       });return;
     }
     if(op==='bookmark'){await mutate('saveArticle',{id:target.dataset.id});return;}
@@ -197,8 +199,8 @@ export function OSRender(app) {
   });
   root.querySelector('.os-folder-filter')?.addEventListener('change',e=>{app.osFolder=e.target.value;app.render();});
   for(const [cls,key,setting] of [['os-compact-toggle','osCompact','osCompact'],['os-motion-toggle','osReducedMotion','osReducedMotion']])root.querySelector('.'+cls)?.addEventListener('change',async e=>{app[key]=e.target.checked;try{await game.settings.set(MODULE_ID,setting,app[key]);}catch(e){ui.notifications.warn(e.message);}app.render();});
-  const tick=()=>{const clock=root.querySelector('.os-clock');if(clock)clock.textContent=clockNow().label;root.querySelectorAll('.os-call-timer').forEach(el=>{const seconds=Math.max(0,Math.floor(((Number(el.dataset.end)||Date.now())-Number(el.dataset.start))/1000));el.textContent=`${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;});};
-  clearInterval(app.osTimer);if(root.querySelector('.os-call-timer, .os-clock')){tick();app.osTimer=setInterval(tick,1000);}
+  const tick=()=>{updateClockElements(root);root.querySelectorAll('[data-reminder-due]').forEach(el=>{const left=deadlineRemaining({clock:el.dataset.clock,calendarId:el.dataset.calendarId,due:Number(el.dataset.reminderDue)});el.textContent=el.dataset.done==='true'?'Готово':left===null?'Календарь недоступен':left<=0?'Срок наступил':`через ${Math.ceil(left/60)} мин.`;});root.querySelectorAll('.os-call-timer').forEach(el=>{const seconds=Math.max(0,Math.floor(((Number(el.dataset.end)||Date.now())-Number(el.dataset.start))/1000));el.textContent=`${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;});};
+  clearInterval(app.osTimer);if(root.querySelector('.os-call-timer, .os-clock, .os-time-controls, [data-reminder-due]')){tick();app.osTimer=setInterval(tick,1000);}
 }
 
 const notified=new Set();
@@ -207,8 +209,8 @@ export function checkOSReminders() {
   for(const device of Object.values(state.devices)) {
     if(device.owner!==user.id && !(user.isGM&&!device.owner))continue;
     for(const r of Object.values(state.os?.reminders?.[device.num]??{})) {
-      const stamp=r.clock==='world'?Number(game.time.worldTime):Date.now()/1000,key=`${device.num}:${r.id}:${r.due}`;
-      if(!r.done&&r.due<=stamp&&!notified.has(key)){notified.add(key);ui.notifications.info(`Агент · ${r.title}`);}
+      const key=`${device.num}:${r.id}:${r.due}`;
+      if(!r.done&&deadlineDue(r)&&!notified.has(key)){notified.add(key);ui.notifications.info(`Агент · ${r.title}`);}
     }
   }
 }

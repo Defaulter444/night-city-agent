@@ -2,6 +2,7 @@ import { mutate, readState } from './store.mjs';
 import * as D from './documents-model.mjs';
 import * as M from './model.mjs';
 import { documentImages } from './document-images.mjs';
+import { makeDeadline, deadlineDue } from './clock.mjs';
 const requireGM = user => { if (!user?.isGM) throw Error('Только для мастера'); };
 import { isStorageItem } from './carriers.mjs';
 export { isStorageItem } from './carriers.mjs';
@@ -118,8 +119,8 @@ export async function runDocumentOperation(data, callerId) {
         const minutes = Number(data.minutes);
         if (!Number.isFinite(minutes) || minutes < 1 || minutes > 525600) throw Error('Задержка: от 1 минуты до года');
         const clock = data.clock === 'world' ? 'world' : 'real';
-        const entry = { id: D.uid(), from: data.from, to: data.to, text: String(data.text).slice(0, 2000), clock,
-          due: (clock === 'world' ? game.time.worldTime : Date.now() / 1000) + minutes * 60, status: 'pending' };
+        const entry = { id: D.uid(), from: data.from, to: data.to, text: String(data.text).slice(0, 2000),
+          ...makeDeadline(minutes,clock), status: 'pending' };
         (state.scheduled ??= []).push(entry); return entry.id;
       }
       case 'cancelSchedule': {
@@ -131,11 +132,11 @@ export async function runDocumentOperation(data, callerId) {
   });
 }
 export async function deliverScheduled() {
-  if (!game.users.activeGM?.isSelf || !readState().scheduled?.some(e => e.status === 'pending' && e.due <= (e.clock === 'world' ? game.time.worldTime : Date.now() / 1000))) return false;
+  if (!game.users.activeGM?.isSelf || !readState().scheduled?.some(e => e.status === 'pending' && deadlineDue(e))) return false;
   return mutate(state => {
     let changed = false;
     for (const e of state.scheduled ?? []) {
-      if (e.status !== 'pending' || e.due > (e.clock === 'world' ? game.time.worldTime : Date.now() / 1000)) continue;
+      if (e.status !== 'pending' || !deadlineDue(e)) continue;
       if (!state.devices[e.from] || !state.devices[e.to]) { e.status = 'unavailable'; changed = true; continue; }
       M.pushMessage(state, e.from, e.to, e.text); e.status = 'sent'; changed = true;
     }

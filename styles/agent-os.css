@@ -43,6 +43,12 @@
 .os-card-head h3 {font-size:14px;letter-spacing:.6px;color:var(--os-cyan);}
 .os-hero {position:relative;min-height:173px;background:#061014 url('../assets/city-banner.png') center right/cover no-repeat;border:1px solid #31515d;border-radius:7px;margin-bottom:18px;padding:23px;}
 .os-hero-copy {max-width:60%;text-shadow:0 2px 6px black;}
+.nca-os .os-hero h2.os-clock {font-size:44px;line-height:1.15;font-variant-numeric:tabular-nums;}
+.os-clock-date {font-size:15px;color:#d6f7fc;margin-bottom:8px;}
+.os-time-controls {display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;margin:0 0 16px;}
+.os-clock-status {color:#bddce2;font-size:12px;}
+.os-time-controls button {min-height:32px;}
+.os-time-controls [hidden] {display:none!important;}
 .nca-os .os-hero h2 {font:600 29px/1.35 var(--nca-heading);color:var(--nca-accent);margin:6px 0 4px;}
 .os-hero p {font-family:var(--nca-heading);color:#d6f7fc;font-size:13px;margin:5px 0;}
 .os-hero-copy>span:last-child {font-size:12px;color:#bddce2;}

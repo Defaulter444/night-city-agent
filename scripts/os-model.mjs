@@ -115,7 +115,10 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
     if (data.id && !old) throw Error('Напоминание не найдено');
     if (data.done !== undefined && old) { old.done=Boolean(data.done); return rid; }
     const title=text(data.title,160), due=Number(data.due); if (!title || !Number.isFinite(due)) throw Error('Укажите текст и время');
-    ((os.reminders ??= {})[number] ??= {})[rid]={id:rid,title,due,clock:data.clock==='world'?'world':'real',done:false}; return rid;
+    const clock=['world','calendar'].includes(data.clock)?data.clock:'real';
+    const calendarId=clock==='calendar'?text(data.calendarId,128):null;
+    if(clock==='calendar'&&!calendarId)throw Error('Не выбран календарь напоминания');
+    ((os.reminders ??= {})[number] ??= {})[rid]={id:rid,title,due,clock,...(calendarId?{calendarId}:{}),done:false}; return rid;
   }
   if (op === 'fileMeta') {
     safeId(data.id);

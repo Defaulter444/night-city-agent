@@ -15,7 +15,7 @@ import { transfer as transferEb, actorForDevice } from "./wealth.mjs";
 import { callREO, callTrauma, inspectLifestyle, findMembership } from "./services.mjs";
 
 import { openWorkspace, inputDialog } from './workspace-app.mjs';
-import { esc } from './clock.mjs';
+import { esc, messageTime, messageTimeTitle } from './clock.mjs';
 import { noteOwner, openNoteResult } from './notes.mjs';
 import { OSContext, contactPortrait } from './os-view.mjs';
 import { performOS, OSRender, selectOSDocument } from './os-controller.mjs';
@@ -511,7 +511,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
           mine: m.f === this.num,
           text: m.x,
           image: m.p || "",
-          time: hhmm(m.ts),
+          time: messageTime(m), timeTitle: messageTimeTitle(m),
           // «Вслух» — либо надиктовано с безхиронного аппарата, либо прочитано
           // вслух моим собственным: без хирона агент проговаривает всё.
           aloud: m.a === 1 || (aloud && m.t === this.num)

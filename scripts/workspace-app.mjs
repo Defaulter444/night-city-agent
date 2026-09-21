@@ -1,7 +1,7 @@
 import { readState, protectedStorage, storageLocked, enableProtection, importRecovery, recoveryBundle } from './store.mjs';
 import { projectState, legacyInventory } from './documents-model.mjs';
 import { documentOperation, refreshState, getSocket, broadcastRefresh, UPDATE_HOOK } from './socket.mjs';
-import { esc } from './clock.mjs';
+import { esc, deadlineRemaining } from './clock.mjs';
 import { isStorageItem } from './documents-service.mjs';
 import { editDocumentDialog } from './document-editor.mjs';
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -71,7 +71,7 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
       canEditDocument: Boolean(document && !this.previewUser && (game.user.isGM || document.canEdit === true)),
       preview: this.previewUser ? game.users.get(this.previewUser)?.name : '',
       entries: (terminal?.entries ?? []).map(e => ({ ...e, random: Boolean(e.tableUuid || e.random) })),
-      scheduled: (all.scheduled ?? []).filter(e => e.status === 'pending').map(e => ({ ...e, when: e.clock === 'world' ? `Через ${Math.max(0,Math.ceil((e.due-game.time.worldTime)/60))} мин. игрового времени` : new Date(e.due * 1000).toLocaleString('ru-RU') })),
+      scheduled: (all.scheduled ?? []).filter(e => e.status === 'pending').map(e => ({ ...e, when: e.clock !== 'real' ? (deadlineRemaining(e)===null?'Календарь недоступен':`Через ${Math.max(0,Math.ceil(deadlineRemaining(e)/60))} мин. игрового времени`) : new Date(e.due * 1000).toLocaleString('ru-RU') })),
       counts: legacyInventory(all), number: this.number };
   }
   async perform(name, target) {

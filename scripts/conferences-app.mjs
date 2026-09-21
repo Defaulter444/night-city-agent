@@ -3,7 +3,7 @@ import * as C from './conferences-model.mjs';
 import { speaksAloud } from './model.mjs';
 import { conferenceOperation, refreshState, UPDATE_HOOK } from './socket.mjs';
 import { inputDialog, openWorkspace } from './workspace-app.mjs';
-import { esc } from './clock.mjs';
+import { esc, messageTime, messageTimeTitle } from './clock.mjs';
 import { shrinkImage, ALLOWED_TYPES } from './images.mjs';
 import { stopRing, ringKey } from './ringtone.mjs';
 import { openConferenceView, closeConferenceView } from './conference-presence.mjs';
@@ -60,7 +60,7 @@ export class ConferencesApp extends HandlebarsApplicationMixin(ApplicationV2) {
         unread: r.members.filter(n => user.isGM ? !state.devices[n]?.owner || state.devices[n].owner === user.id : state.devices[n]?.owner === user.id).reduce((sum,n) => sum + C.conferenceUnread(r,n),0)
       })),
       messages: (room?.messages ?? []).map((m,index) => ({ ...m, index, mine: m.f === this.number,
-        sender: senderLabel(state,this.number,m.f), time: new Date(m.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),
+        sender: senderLabel(state,this.number,m.f), time: messageTime(m), timeTitle: messageTimeTitle(m),
         aloud: m.a === 1 || (m.f !== this.number && speaksAloud(state.devices[this.number])),
         documentTitle: state.documents?.[m.documentId]?.title || 'Файл' })) };
   }

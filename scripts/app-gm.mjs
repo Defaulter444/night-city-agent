@@ -10,6 +10,7 @@ import { broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
 import { openAgent } from "./app-agent.mjs";
 import { openHelp } from "./help.mjs";
 import { browseFiles } from "./foundry-compat.mjs";
+import { messageTime, messageTimeTitle } from './clock.mjs';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -272,7 +273,7 @@ export class AgentGMApp extends HandlebarsApplicationMixin(ApplicationV2) {
           from: m.f,
           text: m.x,
           image: m.p || "",
-          time: hhmm(m.ts),
+          time: messageTime(m), timeTitle: messageTimeTitle(m),
           left: m.f === a
         }))
       };

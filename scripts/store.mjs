@@ -6,6 +6,7 @@
 import { blankState, normalize } from "./model.mjs";
 import { projectState, assertLegacyPreserved } from './documents-model.mjs';
 import { seal, unseal, newRecoveryKey } from './vault.mjs';
+import { stampNewEntries } from './clock.mjs';
 
 export const MODULE_ID = "night-city-agent";
 const KEY = "state";
@@ -167,8 +168,10 @@ export async function mutate(fn) {
     if (!game.user.isGM) throw new Error("Состояние Агента пишет только мастер");
     // A setting is a live cached object. Failed writes must not publish part
     // of a mutation, and the next queued task must read the committed state.
-    const state = foundry.utils.deepClone(readState());
+    const before = readState();
+    const state = foundry.utils.deepClone(before);
     const result = await fn(state);
+    stampNewEntries(before, state);
     state.revision = (state.revision ?? 0) + 1;
     await writeState(state);
     return result;
