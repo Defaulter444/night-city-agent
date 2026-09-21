@@ -55,7 +55,7 @@ test('create, text-only edit, replacement, deletion and failed edits preserve do
   await op({ id, title: 'План', body: 'Вход со двора', images: [gif] }); assert.deepEqual(S.readState().documents[id].images, [gif]);
   const unchanged = structuredClone(S.readState());
   await assert.rejects(op({ id, title: 'Invalid', images: [{ src: 'javascript:alert(1)' }] }));
-  await assert.rejects(op({ id, title: 'Forged edit', number: '2222-2222', images: [] }, 'q'), /мастера/);
+  await assert.rejects(op({ id, title: 'Forged edit', number: '2222-2222', images: [] }, 'q'), /автор или мастер/);
   await assert.rejects(op({ title: 'Forged holder', number: '1111-1111', images: [png] }, 'q'), /устройство/);
   assert.deepEqual(S.readState(), unchanged);
   await op({ id, title: 'План', images: [] });

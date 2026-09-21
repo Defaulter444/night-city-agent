@@ -3,7 +3,7 @@ import { ALLOWED_TYPES, shrinkImage } from './images.mjs';
 import { documentImages, MAX_DOCUMENT_IMAGES } from './document-images.mjs';
 
 /** Foundry 12 Dialog closes before asynchronous callbacks finish; this editor awaits saving. */
-export function editDocumentDialog(doc, save) {
+export function editDocumentDialog(doc, save, { authors, authorId = '' } = {}) {
   let images = documentImages(doc?.images), processing = false;
   return new Promise(resolve => {
     class DocumentDialog extends Dialog {
@@ -15,7 +15,8 @@ export function editDocumentDialog(doc, save) {
         this.saving = true; setBusy(root, true);
         try {
           const fd = new FormData(form);
-          const id = await save({ title: fd.get('title'), source: fd.get('source'), body: fd.get('body'), images: documentImages(images) });
+          const id = await save({ title: fd.get('title'), source: fd.get('source'), body: fd.get('body'), images: documentImages(images),
+            ...(authors ? { authorId: fd.get('authorId') || null } : {}) });
           this.saving = false; resolve(id); await this.close();
         } catch (error) {
           this.saving = false; showError(root, error); setBusy(root, false);
@@ -31,6 +32,9 @@ export function editDocumentDialog(doc, save) {
       content: `<form class="nca-dialog nca-document-editor">
         <label>Название<input name="title" required maxlength="160" value="${esc(doc?.title || '')}"></label>
         <label>Источник<input name="source" maxlength="300" value="${esc(doc?.source || '')}"></label>
+        ${authors ? `<label>Автор файла (может редактировать)<select name="authorId"><option value="">Только мастера</option>${authors.map(u => `<option value="${esc(u.id)}" ${u.id === authorId ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label>
+        <p class="hint">У старых файлов автор не сохранялся. Выберите игрока, который создал файл, чтобы восстановить ему редактирование.</p>` : ''}
+        ${doc ? '<p class="hint">Изменения этого файла увидят все, у кого уже есть к нему доступ.</p>' : ''}
         <label>Содержимое<textarea name="body" rows="7" maxlength="100000">${esc(doc?.body || '')}</textarea></label>
         <section class="nca-image-editor" aria-label="Изображения">
           <div class="nca-image-editor-heading"><strong>Изображения</strong><span class="nca-image-count" aria-live="polite"></span></div>

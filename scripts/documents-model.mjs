@@ -13,9 +13,12 @@ export function terminalAllowed(terminal, user, sceneId) {
   return Boolean(terminal && (user?.isGM || (terminal.users ?? []).includes(user?.id)) &&
     (user?.isGM || terminal.portable || terminal.sceneId === sceneId));
 }
+export function canEditDocument(doc, user) {
+  return Boolean(doc && user && (user.isGM || (user.id && doc.authorId === user.id)));
+}
 export function canReadDocument(state, doc, user, sceneId = '') {
   if (!doc) return false;
-  if (user?.isGM || doc.readers?.includes(user?.id)) return true;
+  if (canEditDocument(doc, user) || doc.readers?.includes(user?.id)) return true;
   if (doc.holders?.some(num => state.devices[num]?.owner === user?.id)) return true;
   if (carrierAccess(doc, user)) return true;
   if (Object.values(state.conferences ?? {}).some(room => canAccessConference(state, room, user) && room.messages.some(m => m.documentId === doc.id))) return true;
@@ -37,7 +40,7 @@ export function projectState(state, user, sceneId = '') {
   for (const [key, value] of Object.entries(state.read)) if (mine.has(key.split('|')[0])) out.read[key] = value;
   for (const num of mine) if (state.organizer?.[num]) out.organizer[num] = clone(state.organizer[num]);
   for (const doc of Object.values(state.documents ?? {})) if (canReadDocument(state, doc, user, sceneId)) {
-    out.documents[doc.id] = { id: doc.id, title: doc.title, body: doc.body, source: doc.source, createdAt: doc.createdAt };
+    out.documents[doc.id] = { id: doc.id, title: doc.title, body: doc.body, source: doc.source, createdAt: doc.createdAt, canEdit: canEditDocument(doc, user) };
     if (doc.images?.length) out.documents[doc.id].images = clone(doc.images);
   }
   for (const t of Object.values(state.terminals ?? {})) if (terminalAllowed(t, user, sceneId)) {
@@ -46,10 +49,11 @@ export function projectState(state, user, sceneId = '') {
   }
   return out;
 }
-export function createDocument(state, { title, body, source = '', holders = [], readers = [], images }, now = Date.now()) {
+export function createDocument(state, { title, body, source = '', holders = [], readers = [], images, authorId }, now = Date.now()) {
   title = String(title ?? '').trim().slice(0, 160); body = String(body ?? '').slice(0, 100000);
   if (!title) throw Error('Укажите название файла');
   const doc = { id: uid(), title, body, source: String(source).slice(0, 300), holders: [...new Set(holders)], readers: [...new Set(readers)], createdAt: now };
+  if (authorId !== undefined) doc.authorId = authorId;
   if (images !== undefined) doc.images = documentImages(images);
   (state.documents ??= {})[doc.id] = doc;
   return doc;

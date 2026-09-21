@@ -24,19 +24,29 @@ export async function runDocumentOperation(data, callerId) {
     switch (data.op) {
       case 'organize': return D.organize(state, data, user);
       case 'createDocument': {
-        if (!user.isGM) D.ownDevice(state, data.number, user);
-        if (data.id) {
+        // Only the authenticated creator or an explicit GM assignment establishes authorship.
+        // Readers/holders of older files are not reliable evidence of who created them.
+        let authorId;
+        if (Object.hasOwn(data, 'authorId')) {
           requireGM(user);
+          authorId = data.authorId || null;
+          if (authorId !== null && (typeof authorId !== 'string' || !game.users.get(authorId))) throw Error('Автор файла не найден');
+        }
+        if (data.id) {
           const doc = state.documents?.[data.id];
           if (!doc) throw Error('Файл не найден');
+          if (!D.canEditDocument(doc, user)) throw Error('Редактировать файл может только его автор или мастер');
           const title = String(data.title ?? '').trim().slice(0, 160);
           if (!title) throw Error('Укажите название файла');
           // Older clients omit images when editing text. Only an explicit list replaces them.
           const images = data.images === undefined ? {} : { images: documentImages(data.images) };
           Object.assign(doc, { title, body: String(data.body ?? '').slice(0, 100000), source: String(data.source ?? '').slice(0, 300), ...images });
+          if (authorId !== undefined) doc.authorId = authorId;
           return doc.id;
         }
+        if (!user.isGM) D.ownDevice(state, data.number, user);
         return D.createDocument(state, { title: data.title, body: data.body, source: data.source, images: data.images,
+          authorId: authorId === undefined ? user.id : authorId,
           holders: data.number ? [data.number] : [], readers: user.isGM ? data.readers ?? [] : [user.id] }).id;
       }
       case 'sendDocument': return D.attachDocument(state, data, user);

@@ -68,6 +68,7 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
       documents: documents.map(d => ({ ...d, selected: d.id === this.documentId })), document,
       terminals: terminals.map(t => ({ ...t, selected: t.id === this.terminalId })), terminal,
       editable: game.user.isGM && !this.previewUser,
+      canEditDocument: Boolean(document && !this.previewUser && (game.user.isGM || document.canEdit === true)),
       preview: this.previewUser ? game.users.get(this.previewUser)?.name : '',
       entries: (terminal?.entries ?? []).map(e => ({ ...e, random: Boolean(e.tableUuid || e.random) })),
       scheduled: (all.scheduled ?? []).filter(e => e.status === 'pending').map(e => ({ ...e, when: e.clock === 'world' ? `Через ${Math.max(0,Math.ceil((e.due-game.time.worldTime)/60))} мин. игрового времени` : new Date(e.due * 1000).toLocaleString('ru-RU') })),
@@ -99,9 +100,14 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (name === 'selectTerminal') { this.terminalId = target.dataset.id; this.documentId = null; return; }
     if (name === 'createDocument' || name === 'editDocument') {
+      if (this.previewUser) throw Error('В режиме просмотра нельзя изменять файлы');
       const doc = name === 'editDocument' ? state.documents?.[this.documentId] : null;
+      if (name === 'editDocument' && !doc) throw Error('Файл больше недоступен');
+      if (doc && !game.user.isGM && doc.canEdit !== true) throw Error('Редактировать файл может только его автор или мастер');
+      const number = this.number;
+      const authors = game.user.isGM ? { authors: game.users.map(u => ({ id: u.id, name: u.name })), authorId: doc ? doc.authorId ?? '' : game.user.id } : undefined;
       const id = await editDocumentDialog(doc,
-        fields => documentOperation('createDocument', { id: doc?.id, number: this.number, ...fields }));
+        fields => documentOperation('createDocument', { id: doc?.id, number, ...fields }), authors);
       if (id) this.documentId = id; return;
     }
     if (name === 'saveDocument') { await documentOperation('saveDocument', { number: this.number, documentId: this.documentId }); ui.notifications.info('Файл сохранён в Агенте'); return; }
