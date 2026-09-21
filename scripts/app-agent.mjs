@@ -664,6 +664,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   _onClose(options) {
+    this.osMapController?.destroy();this.osMapController=null;
     super._onClose?.(options);
     Hooks.off(UPDATE_HOOK, this._onUpdate);
     Hooks.off(RING_HOOK, this._onRing);

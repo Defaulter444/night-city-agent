@@ -11,6 +11,7 @@ import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP } from './os-model.m
 import { actorForDevice, transfer, hasLedger, isNPCDevice, payFromNPC } from './wealth.mjs';
 import { clearOpenThread } from './presence.mjs';
 import { stopRing, ringKey } from './ringtone.mjs';
+import { bindMapNavigation } from './map-navigation.mjs';
 const field=(name,label,value='',type='text',extra='')=>`<label>${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 const area=(name,label,value='',rows=4)=>`<label>${esc(label)}<textarea name="${name}" rows="${rows}">${esc(value)}</textarea></label>`;
 const select=(name,label,options,value='')=>`<label>${esc(label)}<select name="${name}">${Object.entries(options).map(([v,s])=>`<option value="${esc(v)}" ${v===value?'selected':''}>${esc(s)}</option>`).join('')}</select></label>`;
@@ -54,11 +55,14 @@ export async function performOS(app,event,target) {
     if(op==='newsFilter'){app.osSavedOnly=!app.osSavedOnly;return;}
     if(op==='fileFilter'){app.osFileType=target.dataset.filter;return;}
     if(op==='documentSelect'){app.osDocId=target.dataset.id;return;}
-    if(op==='placeSelect'||op==='gotoPlace'){app.osPlaceId=target.dataset.id;app.osTab='map';return;}
+    if(op==='placeSelect'||op==='gotoPlace'){
+      app.osPlaceId=target.dataset.id;app.osTab='map';
+      if(op==='gotoPlace'||target.dataset.focus){app.osMapFocus=target.dataset.id;app.osMapCategory='';(app.osSearch??={}).map='';}
+      return;
+    }
     if(op==='callSelect'){app.osCallId=target.dataset.id;return;}
     if(op==='callScope'){if(!user.isGM)throw Error('Доступно только мастеру');app.osCallScope=target.dataset.scope==='mine'?'mine':'all';app.osCallId=null;return;}
     if(op==='callFilter'){app.osCallFilter=target.dataset.filter;app.osCallId=null;return;}
-    if(op.startsWith('zoom')){app.osZoom=op==='zoomReset'?1:Math.max(1,Math.min(4,(app.osZoom||1)+(op==='zoomIn'?.5:-.5)));return;}
     if(op==='workspace'){openWorkspace({number,tab:target.dataset.tab||'files'});return;}
     if(op==='favorite'||op==='contact') {
       const other=target.dataset.num,old=os.contacts?.[number]?.[other]??{};
@@ -77,17 +81,17 @@ export async function performOS(app,event,target) {
       const collection={job:'jobs',place:'places',article:'articles'}[op],old=os[collection]?.[target.dataset.id]??{};
       let form=field('title','Название',old.title,'text','required maxlength="160"')+area('body','Описание',old.body);
       if(op==='job') form+=select('status','Состояние',JOB_STATES,old.status||'planned')+field('reward','Награда, эдди',old.reward||0,'number','min="0" step="1"')+field('fixer','Заказчик',old.fixer)+field('due','Игровой срок',old.due,'text','placeholder="Сегодня, 23:00"')+select('placeId','Место',{'':'Без привязки',...Object.fromEntries(Object.values(os.places??{}).map(p=>[p.id,p.title]))},old.placeId)+area('steps','Этапы — по одному на строку',(old.steps??[]).map(s=>s.label).join('\n'));
-      if(op==='place') form+=select('category','Категория',PLACE_TYPES,old.category||'place')+field('district','Район',old.district)+field('contact','Номер контакта',old.contact)+field('x','Положение по горизонтали, %',old.x??50,'number','min="0" max="100" step="0.1"')+field('y','Положение по вертикали, %',old.y??50,'number','min="0" max="100" step="0.1"');
+      if(op==='place') form+=select('category','Категория',PLACE_TYPES,old.category||'place')+field('district','Район',old.district)+field('contact','Номер контакта',old.contact)+'<details class="os-map-coordinates"><summary>Точные координаты</summary>'+field('x','Положение по горизонтали, %',old.x??target.dataset.mapX??50,'number','min="0" max="100" step="0.01"')+field('y','Положение по вертикали, %',old.y??target.dataset.mapY??50,'number','min="0" max="100" step="0.01"')+'</details>';
       if(op==='article')form+=field('source','Источник',old.source)+field('category','Раздел',old.category||'Новости');
       form+=imageFields(old.image||'')+audience(state,old);
       const rid=await inputDialog({job:'Задание',place:'Место на карте',article:'Публикация Data Pool'}[op],form,async fd=>mutate(op,{...Object.fromEntries([...fd.entries()].filter(([k])=>!k.startsWith('aud-')&&k!=='upload')),id:old.id,...audienceData(fd,state),image:await imageValue(fd,old.image)}));
-      if(rid&&op==='place')app.osPlaceId=rid;return;
+      if(rid&&op==='place'){app.osPlaceId=rid;app.osMapCategory='';(app.osSearch??={}).map='';}return;
     }
     if(op==='mapEdit') {
       const old=os.map??{};
       await inputDialog('Карта и город',field('title','Название карты',old.title||'Найт-Сити')+field('location','Текущее место группы',old.location)+field('weather','Погода в вашей кампании',old.weather)+imageFields(old.image||''),async fd=>mutate('map',{title:fd.get('title'),location:fd.get('location'),weather:fd.get('weather'),image:await imageValue(fd,old.image,4000000)}));return;
     }
-    if(op==='defaultMap'){await mutate('map',{...os.map,title:'Найт-Сити 2045',image:DEFAULT_CITY_MAP});app.osZoom=1;return;}
+    if(op==='defaultMap'){await mutate('map',{...os.map,title:'Найт-Сити 2045',image:DEFAULT_CITY_MAP});app.osMapView=null;app.osMapMode=null;return;}
     if(op==='reminder') {
       await inputDialog('Напоминание',field('title','О чём напомнить','','text','required')+field('minutes','Через сколько минут',30,'number','min="1" max="525600" required')+select('clock','По каким часам',{world:'Игровое время Foundry',real:'Реальное время'},'world')+'<p class="hint">Напоминание появится при достижении срока. Игровые часы продвигает мастер.</p>',fd=>{
         const minutes=Number(fd.get('minutes'));if(!Number.isFinite(minutes)||minutes<1||minutes>525600)throw Error('От 1 до 525600 минут');
@@ -173,6 +177,8 @@ export async function performOS(app,event,target) {
   } finally {app.osBusy=false;if(!app.closing)app.render();}
 }
 export function OSRender(app) {
+  app.osMapController?.destroy();app.osMapController=null;
+  if(app.osTab!=='map')app.osMapMode=null;
   const root=app.element;if(!root)return;
   const pageKey=`${app.num}|${app.osTab}`;
   if(app.osRenderedPage!==pageKey){const page=root.querySelector('.os-page');if(page)page.scrollTop=0;app.osRenderedPage=pageKey;}
@@ -183,6 +189,12 @@ export function OSRender(app) {
   root.querySelectorAll('.os-job-step').forEach(el=>el.addEventListener('change',()=>update('jobStep',{id:el.dataset.id,stepId:el.dataset.step,done:el.checked})));
   root.querySelectorAll('.os-reminder-check').forEach(el=>el.addEventListener('change',()=>update('reminder',{id:el.dataset.id,done:el.checked})));
   root.querySelector('.os-map-category')?.addEventListener('change',e=>{app.osMapCategory=e.target.value;app.render();});
+  app.osMapController=bindMapNavigation(app,{
+    isGM:game.user.isGM,
+    create:point=>performOS(app,null,{dataset:{os:'place',mapX:String(point.x),mapY:String(point.y)}}),
+    move:(id,point)=>osOperation('placeMove',{number:app.num,id,...point}),
+    onError:error=>ui.notifications.error(error.message)
+  });
   root.querySelector('.os-folder-filter')?.addEventListener('change',e=>{app.osFolder=e.target.value;app.render();});
   for(const [cls,key,setting] of [['os-compact-toggle','osCompact','osCompact'],['os-motion-toggle','osReducedMotion','osReducedMotion']])root.querySelector('.'+cls)?.addEventListener('change',async e=>{app[key]=e.target.checked;try{await game.settings.set(MODULE_ID,setting,app[key]);}catch(e){ui.notifications.warn(e.message);}app.render();});
   const tick=()=>{const clock=root.querySelector('.os-clock');if(clock)clock.textContent=clockNow().label;root.querySelectorAll('.os-call-timer').forEach(el=>{const seconds=Math.max(0,Math.floor(((Number(el.dataset.end)||Date.now())-Number(el.dataset.start))/1000));el.textContent=`${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;});};

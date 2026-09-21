@@ -83,3 +83,13 @@ test('a call selected from history is not replaced by an unrelated active call',
  const html=OSContext({num:'1111-1111',osTab:'calls',osCallId:old},state).osContent;
  assert.ok(html.includes('Разговор завершён'));assert.ok(!html.includes('<h3>Ожидание ответа</h3>'));
 });
+
+test('pin movement uses the authenticated GM and rolls back failed saves',async()=>{
+ reset();const id=await run('place',{title:'Место миссии',x:20,y:30,published:true,public:true},'gm');
+ const before=structuredClone(state);
+ await assert.rejects(run('placeMove',{id,x:70,y:80,senderId:'gm'}));assert.deepEqual(state,before);
+ failWrite=true;await assert.rejects(run('placeMove',{id,x:70,y:80},'gm'));assert.deepEqual(state,before);
+ failWrite=false;await run('placeMove',{id,x:70,y:80},'gm');
+ assert.equal(state.os.places[id].x,70);assert.equal(state.os.places[id].title,'Место миссии');
+ assert.equal(D.projectState(state,q).os.places[id].y,80);
+});

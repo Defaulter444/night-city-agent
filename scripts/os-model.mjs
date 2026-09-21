@@ -93,6 +93,14 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
     if (op === 'article') Object.assign(record,{ source:text(data.source,120), category:text(data.category,40) || 'Новости' });
     (os[collection] ??= {})[rid] = record; return rid;
   }
+  if (op === 'placeMove') {
+    gm(user);
+    const place=os.places?.[safeId(data.id)];if(!place)throw Error('Метка больше не существует');
+    const x=Number(data.x),y=Number(data.y);
+    if([data.x,data.y].some(v=>v==null||typeof v==='boolean'||(typeof v==='string'&&!v.trim()))||![x,y].every(v=>Number.isFinite(v)&&v>=0&&v<=100))throw Error('Положение метки должно быть от 0 до 100%');
+    // Moving a pin must not overwrite concurrently edited text or visibility.
+    Object.assign(place,{x,y,updatedAt:now});return place.id;
+  }
   if (op === 'jobStep') {
     const job=os.jobs?.[data.id]; if (!visibleRecord(state,job,user)) throw Error('Задание недоступно');
     const step=job.steps.find(s=>s.id===data.stepId); if (!step) throw Error('Пункт не найден'); step.done=Boolean(data.done); return job.id;

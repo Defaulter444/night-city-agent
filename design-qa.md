@@ -66,3 +66,17 @@ No live audio/video monitoring is added. Publication to GitHub is outside this l
 ## Release promotion — 0.15.0
 
 The user subsequently requested publication to GitHub. Version 0.15.0 promotes the tested local builds above; publication changes the version, installation URL, changelog and documentation. Application behavior remains the same as 0.15.0-local.2. The historical local-only scope statements above describe the original verification runs. Release preparation reruns the automated suite and verifies the manifest, archive contents and public downloads. Evidence directory: `work/agent-os-release-2026-09-21/evidence/`.
+
+## Map navigation — 0.15.1-local.1
+
+Date: 2026-09-21. Local update only. Evidence: `work/agent-map-2026-09-21/evidence/`.
+
+- Replaced width-only scaling with a fitted image viewport. Mouse dragging pans the map; wheel zoom is anchored at the cursor. Fit, zoom buttons and keyboard navigation are available. A stable scrollbar gutter prevents the map shifting as scrollbars appear.
+- GM placement mode creates a new place at the clicked image coordinate, with its normal title/description/audience form. Existing pins can be dragged, or moved by selecting a destination. Players retain navigation and place selection; the authenticated GM is required for coordinate writes.
+- Coordinate-only updates preserve descriptions, audience and linked jobs. Search and category filters operate on both markers and the place list. Selecting a list entry centers its marker. A resize or content refresh retains normalized view position; changing the map image resets to fit.
+- Native Foundry 12.331: a click at 264% zoom filled coordinates 66.09 / 58.94, matching the clicked image location. Dragging by 45 × 30 pixels saved 71.52 / 63.55, matching the expected geometry. Destination-click movement saved 48.73 / 59.86; those coordinates survived page reload. The previous place remained at 40 / 55 with its title, description, audience and job link unchanged. Evidence: `pin-drag.json`, `persisted-map.json`.
+- Cursor zoom stayed within one rendered pixel of the same image point. Content refresh retained scroll offsets exactly (116 / 203). Evidence: `zoom-refresh.json`.
+- Verified search, list navigation, fit, keyboard Enter placement, form cancellation and Esc cancellation. Cancelling did not create another place. Layout checked at 1100 and 550 pixel application widths; the narrow page and scroll width were both 526 pixels. Evidence: `map-navigation-wide.png`, `map-navigation-narrow.png`, `map-fit-wide.png`.
+- **89 automated tests passed**, including map geometry, GM permissions, failed-save rollback and preservation of existing mission data. Native checks used a GM client in an isolated test world; player permissions were checked through the model and authenticated service tests. No new browser error was observed in the final run.
+
+Production worlds are not seeded or migrated. Existing percentage coordinates are used as-is. Full release publication is not part of this local map update.
