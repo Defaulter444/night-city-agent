@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "playwright": {"command":"node","args":["tools.mjs","run","playwright"]},
+    "chrome-devtools": {"command":"node","args":["tools.mjs","run","devtools"]}
+  }
+}

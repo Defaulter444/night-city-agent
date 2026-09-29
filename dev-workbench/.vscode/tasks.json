@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {"label":"Workbench: setup","type":"shell","command":"npm run setup","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: doctor","type":"shell","command":"npm run doctor","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: UI","type":"shell","command":"npm run dev","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: offline UI","type":"shell","command":"npm run preview:offline","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: check","type":"shell","command":"npm run check","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: Codex","type":"shell","command":"npm run codex","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: Gemini","type":"shell","command":"npm run gemini","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Workbench: Claude","type":"shell","command":"npm run claude","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]}
+  ]
+}

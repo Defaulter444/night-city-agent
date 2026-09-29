@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { cleanMessage, motionDuration, readMessages, appendMessage, manifestProblems, STORE_KEY } from '../lib.mjs';
+function store(initial = {}) { const data = new Map(Object.entries(initial)); return { getItem: k => data.get(k) ?? null, setItem: (k,v) => data.set(k,v) }; }
+test('trim message', () => assert.equal(cleanMessage('  Привет  '), 'Привет'));
+test('reject empty', () => assert.throws(() => cleanMessage('  ')));
+test('reject long', () => assert.throws(() => cleanMessage('a'.repeat(2001))));
+test('reject non-string', () => assert.throws(() => cleanMessage(12)));
+test('motion preference always wins', () => assert.equal(motionDuration('cinematic', true), 0));
+test('off means no motion', () => assert.equal(motionDuration('off'), 0));
+test('cinematic duration', () => assert.equal(motionDuration('cinematic'), 380));
+test('bad storage recovers', () => assert.deepEqual(readMessages(store({ [STORE_KEY]: '{oops' })), []));
+test('unexpected data shape recovers', () => assert.deepEqual(readMessages(store({ [STORE_KEY]: '{}' })), []));
+test('append persists', () => { const s = store(); appendMessage(s, 'Hi'); assert.deepEqual(readMessages(s), ['Hi']); });
+test('limit 50', () => { const s = store(); for (let i=0;i<60;i++) appendMessage(s,String(i)); assert.equal(readMessages(s).length,50); assert.equal(readMessages(s)[0],'10'); });
+test('valid v12 manifest', () => assert.deepEqual(manifestProblems({ id:'test-module', version:'1.0.0', compatibility:{minimum:'12'}, esmodules:['scripts/main.mjs'] }), []));
+test('wrong Foundry target', () => assert.ok(manifestProblems({id:'a',version:'1',compatibility:{minimum:'13'}}).length));
+test('reject escaping resource', () => assert.ok(manifestProblems({id:'a',version:'1',compatibility:{minimum:'12'},styles:['../secrets']} ).length));
+test('reject wrong list type', () => assert.ok(manifestProblems({id:'a',version:'1',compatibility:{minimum:'12'},styles:{}}).length));
+test('non-demo keys untouched', () => { const s = store({ campaign:'keep' }); appendMessage(s,'Hi'); assert.equal(s.getItem('campaign'),'keep'); });

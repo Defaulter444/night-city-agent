@@ -1,0 +1,6 @@
+{
+  "servers": {
+    "playwright": {"type":"stdio","command":"node","args":["${workspaceFolder}/tools.mjs","run","playwright"]},
+    "chrome-devtools": {"type":"stdio","command":"node","args":["${workspaceFolder}/tools.mjs","run","devtools"]}
+  }
+}

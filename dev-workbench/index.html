@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RED / Foundry Workbench</title><link rel="icon" href="./favicon.svg"><link rel="stylesheet" href="./style.css"></head>
+<body>
+<div class="shell">
+<header><div><p class="eyebrow">CYBERPUNK RED · FOUNDRY V12</p><h1>RED / WORKBENCH</h1><p class="sub">Разработка. Проверка. Анимации.</p></div><span class="badge">ИЗОЛИРОВАННЫЙ СТЕНД</span></header>
+<div class="notice">Это демонстрация компонентов, не запущенный Foundry и не статус твоих аккаунтов. Используются только тестовые данные браузера.</div>
+<div class="toolbar"><nav aria-label="Разделы стенда"><button data-tab="agent" aria-pressed="true">Агент</button><button data-tab="net" aria-pressed="false">СЕТЬ</button><button data-tab="hq" aria-pressed="false">Штаб</button></nav><label>Анимации <select id="motion"><option value="moderate">Умеренные</option><option value="cinematic">Кинематографичные</option><option value="off">Выключены</option></select></label></div>
+<main>
+<section id="agent" class="panel" aria-label="Стенд Агента">
+<div class="section-head"><div><p class="eyebrow">01 / AGENT UI</p><h2>Входящие</h2></div><span class="pill">Локальная демонстрация</span></div>
+<div class="agent-grid"><aside><button class="contact active">Найтлайт<span>Тестовый контакт · онлайн</span></button><button class="contact" disabled>Другие контакты<span>Только образец компонента</span></button><p class="muted small">Переписка сохраняется в отдельном ключе localStorage. Данные модуля не читаются.</p></aside><div class="conversation"><h3>Найтлайт <span class="muted">/ тестовый канал</span></h3><div id="messages" class="messages" aria-label="Переписка"></div><form id="message-form"><label for="message">Сообщение</label><div class="compose"><input id="message" autocomplete="off" maxlength="2000" placeholder="Проверим интерфейс в деле…"><button type="submit" class="primary">Отправить</button></div><p id="form-error" role="alert"></p></form></div></div>
+</section>
+<section id="net" class="panel" aria-label="Стенд СЕТи" hidden><div class="section-head"><div><p class="eyebrow">02 / NET UI</p><h2>Обнаружение узла</h2></div><span class="pill">Без игровых правил</span></div><div class="nodes"><div class="node">ТОЧКА ДОСТУПА<small>Соединение установлено</small></div><span class="connector" aria-hidden="true">→</span><div id="net-node" class="node unknown">НЕИЗВЕСТНЫЙ УЗЕЛ<small>Ещё не раскрыт</small></div></div><button id="scan" class="primary">Раскрыть узел</button><p class="muted">Демонстрация перехода состояния. Не делает бросков и не читает NET-архитектуры.</p></section>
+<section id="hq" class="panel" aria-label="Стенд штаба" hidden><div class="section-head"><div><p class="eyebrow">03 / HQ UI</p><h2>События штаба</h2></div><span class="pill">Тестовые значения</span></div><div class="metrics"><article><span>Энергия</span><strong>86%</strong></article><article><span>Персонал</span><strong>04</strong></article><article><span>События</span><strong id="events-count">0</strong></article></div><button id="event" class="primary">Добавить тестовое событие</button><p class="muted">Значения придуманы для проверки компонентов, не получены из твоего мира.</p></section>
+</main>
+<section class="workflow"><div><p class="eyebrow">РАБОЧИЙ ЦИКЛ</p><h2>Одна задача. Одна ветка. Проверяемый результат.</h2></div><ol><li>Прочитать AGENTS.md</li><li>Изменить один сценарий</li><li>Запустить тесты и снять экран</li><li>Проверить в тестовом Foundry</li></ol></section>
+<footer><span>Нет публикации релизов · нет доступа к домашнему ПК</span><button id="clear">Очистить только данные стенда</button></footer>
+</div><div id="toast" role="status" aria-live="polite"></div><script type="module" src="./app.mjs"></script>
+</body></html>
