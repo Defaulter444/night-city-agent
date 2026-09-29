@@ -1,0 +1,21 @@
+{
+  "name": "Foundry v12 · Cyberpunk RED Workbench",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "remoteUser": "node",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/dev-workbench",
+  "postCreateCommand": "node tools.mjs setup --ai --browser",
+  "forwardPorts": [5173, 4173],
+  "portsAttributes": {
+    "5173": {"label": "UI · Vite", "onAutoForward": "notify"},
+    "4173": {"label": "UI · offline preview", "onAutoForward": "notify"}
+  },
+  "otherPortsAttributes": {"onAutoForward": "ignore"},
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "ms-playwright.playwright"],
+      "settings": {"terminal.integrated.cwd": "${workspaceFolder}", "editor.formatOnSave": false}
+    }
+  },
+  "hostRequirements": {"cpus": 2, "memory": "8gb"},
+  "shutdownAction": "stopContainer"
+}

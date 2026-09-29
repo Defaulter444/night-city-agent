@@ -1,0 +1,7 @@
+# Start Codex from dev-workbench. No model IDs, API keys or quota settings are assumed.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+[mcp_servers.playwright]
+command = "node"
+args = ["tools.mjs", "run", "playwright"]
+startup_timeout_sec = 60

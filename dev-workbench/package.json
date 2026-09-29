@@ -1,0 +1,35 @@
+{
+  "name": "foundry-cpr-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.12.0"},
+  "scripts": {
+    "setup": "node tools.mjs setup --ai --browser",
+    "doctor": "node tools.mjs doctor",
+    "dev": "vite",
+    "preview:offline": "node tools.mjs serve",
+    "build": "vite build",
+    "lint": "eslint .",
+    "test": "node --test tests/offline.test.mjs",
+    "test:vitest": "vitest run",
+    "test:e2e": "playwright test",
+    "check": "npm run lint && npm test && npm run test:vitest && npm run build && npm run test:e2e",
+    "repos": "node tools.mjs repos",
+    "audit:module": "node tools.mjs audit",
+    "codex": "node tools.mjs run codex",
+    "gemini": "node tools.mjs run gemini",
+    "claude": "node tools.mjs run claude",
+    "mcp:playwright": "node tools.mjs run playwright",
+    "mcp:devtools": "node tools.mjs run devtools"
+  },
+  "dependencies": {"animejs": "^4.0.0", "lucide": "^0.500.0"},
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "vitest": "^4.0.0",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "globals": "^16.0.0",
+    "@playwright/test": "^1.58.0"
+  }
+}

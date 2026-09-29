@@ -1,0 +1,14 @@
+node_modules/
+.tools/
+repos/
+dist/
+reports/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+**/auth.json
+**/oauth_creds.json
+**/*storage-state*.json
+*.log
