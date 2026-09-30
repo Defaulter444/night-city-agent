@@ -35,6 +35,16 @@ function numbers(state, values) {
 export function visibleRecord(state, record, user) {
   return Boolean(record && user && (user.isGM || record.authorId === user.id || (record.published && (record.public || record.numbers?.some(n => state.devices[n]?.owner === user.id)))));
 }
+export function articleAudience(record = {}) {
+  // Older editors allowed publishing without an audience. These news belong
+  // in the public feed; an explicitly selected audience never falls back.
+  if (record.audience === 'selected') return 'selected';
+  return record.audience === 'all' || record.public || !record.numbers?.length ? 'all' : 'selected';
+}
+export function visibleArticle(state, record, user) {
+  return Boolean(record && user && (user.isGM || (record.published &&
+    (articleAudience(record) === 'all' || record.numbers?.some(n => state.devices[n]?.owner === user.id)))));
+}
 export function editableRecord(record,user) { return Boolean(record && user && (user.isGM || record.authorId === user.id)); }
 export function projectOS(state,user) {
   const os = state.os;
@@ -47,7 +57,7 @@ export function projectOS(state,user) {
     Object.keys(state.threads).filter(k => k.split('|').includes(n)).forEach(k => k.split('|').forEach(v => known.add(v)));
   }
   const out = { profiles:{}, contacts:{}, jobs:{}, places:{}, articles:{}, reminders:{}, calls:{}, fileMeta:{}, saved:{}, map:clone(os.map ?? {}) };
-  for (const key of ['jobs','places','articles']) for (const [rid,record] of Object.entries(os[key] ?? {})) if (visibleRecord(state,record,user)) out[key][rid] = clone(record);
+  for (const key of ['jobs','places','articles']) for (const [rid,record] of Object.entries(os[key] ?? {})) if ((key === 'articles' ? visibleArticle : visibleRecord)(state,record,user)) out[key][rid] = clone(record);
   for (const [rid,call] of Object.entries(os.calls ?? {})) if (mine.some(n => call.members.includes(n))) { out.calls[rid] = clone(call); call.members.forEach(n=>known.add(n)); }
   for (const n of known) if (os.profiles?.[n]) out.profiles[n] = clone(os.profiles[n]);
   for (const n of mine) for (const key of ['contacts','reminders','fileMeta','saved']) if (os[key]?.[n]) out[key][n] = clone(os[key][n]);
@@ -92,12 +102,39 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
       Object.assign(record,{x,y,category:Object.hasOwn(PLACE_TYPES,data.category)?data.category:'place',district:text(data.district,100), contact:text(data.contact,16)});
     }
     if (op === 'article') {
+      if (data.audience !== undefined && !['all','selected'].includes(data.audience)) throw Error('Выберите аудиторию публикации');
+      record.audience = data.audience ?? (data.public ? 'all' : old && articleAudience(old) === 'selected' ? 'selected' : articleAudience(record));
+      record.public = record.audience === 'all';
+      if (record.audience === 'selected' && !record.numbers.length && record.published) throw Error('Выберите хотя бы один Агент для публикации');
       Object.assign(record,{ source:text(data.source,120), category:text(data.category,40) || 'Новости' });
       if (Object.hasOwn(data,'publicationDate') || Object.hasOwn(data,'publicationTime')) {
         record.publicationAt = publicationValue(data.publicationDate,data.publicationTime);
       } else if (old?.publicationAt) record.publicationAt = old.publicationAt;
     }
     (os[collection] ??= {})[rid] = record; return rid;
+  }
+  if (op === 'articleDelete' || op === 'articleRestore') {
+    gm(user);
+    const rid = safeId(data.id), removing = op === 'articleDelete';
+    const source = removing ? os.articles : os.articleTrash;
+    const destination = removing ? (os.articleTrash ??= {}) : (os.articles ??= {});
+    const record = source?.[rid];
+    if (!record) {
+      if (destination[rid]) return rid; // A repeated request already succeeded.
+      throw Error('Публикация больше не существует');
+    }
+    if (destination[rid]) throw Error('Публикация с таким идентификатором уже существует');
+    const restored = clone(record);
+    if (removing) {
+      Object.assign(restored,{deletedAt:now,deletedBy:user.id});
+      for (const [num,saved] of Object.entries(os.saved ?? {})) os.saved[num] = saved.filter(key => key !== rid);
+    } else {
+      delete restored.deletedAt; delete restored.deletedBy;
+      restored.updatedAt = now;
+    }
+    destination[rid] = restored;
+    delete source[rid];
+    return rid;
   }
   if (op === 'placeMove') {
     gm(user);
@@ -113,7 +150,7 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
   }
   if (op === 'map') { gm(user); os.map={ image:imageSource(data.image,4000000), title:text(data.title,100)||'Найт-Сити', location:text(data.location,100), weather:text(data.weather,100) }; return true; }
   if (op === 'saveArticle') {
-    if (!visibleRecord(state,os.articles?.[data.id],user)) throw Error('Статья недоступна');
+    if (!visibleArticle(state,os.articles?.[data.id],user)) throw Error('Статья недоступна');
     const saved=((os.saved ??= {})[number] ??= []); const i=saved.indexOf(data.id); if(i<0) saved.push(data.id); else saved.splice(i,1); return true;
   }
   if (op === 'reminder') {

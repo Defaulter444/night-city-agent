@@ -1,7 +1,7 @@
 import { esc, now, deadlineRemaining, messageTime } from './clock.mjs';
 import { clockControls } from './clock-ui.mjs';
 import { contactsFor, contactLabel } from './model.mjs';
-import { OS_TABS, JOB_STATES, PLACE_TYPES, visibleRecord, editableRecord, callsForViewer, cityMap } from './os-model.mjs';
+import { OS_TABS, JOB_STATES, PLACE_TYPES, visibleRecord, visibleArticle, articleAudience, editableRecord, callsForViewer, cityMap } from './os-model.mjs';
 import { actorForDevice, hasLedger, isNPCDevice } from './wealth.mjs';
 import { protectedStorage } from './store.mjs';
 import { canReadDocument, canEditDocument } from './documents-model.mjs';
@@ -24,7 +24,7 @@ export function OSContext(app,state) {
   const number=app.num, device=state.devices[number], os=state.os??{}, user=game.user;
   const page=app.osTab||'home', profile=os.profiles?.[number]??{}, map=cityMap(state);
   const npcPayer=user.isGM&&isNPCDevice(device),monitoring=user.isGM&&app.osCallScope!=='mine';
-  const available=key=>Object.values(os[key]??{}).filter(r=>visibleRecord(state,r,user));
+  const available=key=>Object.values(os[key]??{}).filter(r=>(key==='articles'?visibleArticle:visibleRecord)(state,r,user));
   const jobs=available('jobs'),places=available('places'),articles=available('articles').sort(comparePublications);
   const contacts=number?contactsFor(state,number):[];
   const devices=Object.values(state.devices).filter(d=>user.isGM||d.owner===user.id);
@@ -81,8 +81,20 @@ export function OSContext(app,state) {
       `<div class="os-map-tools">${mb('out','Меньше','','minus')}<output class="os-map-scale" aria-label="Масштаб карты">100%</output>${mb('in','Больше','','plus')}${mb('fit','Вся карта','','expand')}${mb('cancel','Отменить размещение','hidden','xmark')}</div><p class="os-map-status" role="status"></p><div class="os-grid os-map-layout"><div>${mapMarkup}</div><div>${section('Места',search(app,'Поиск места или района')+`<select class="os-map-category" aria-label="Категория мест"><option value="">Все места</option>${Object.entries(PLACE_TYPES).map(([k,v])=>`<option value="${k}" ${app.osMapCategory===k?'selected':''}>${v}</option>`).join('')}</select><div class="os-place-list">${list.map(p=>`<div data-os-search="${query(p)}">${button('placeSelect',p.title,`data-id="${p.id}" data-focus="true" class="${selected?.id===p.id?'on':''}"`,'location-dot')}</div>`).join('')||'<p class="os-muted">Нет доступных меток.</p>'}</div>`)}${selected?section(selected.title,`${img(selected.image,'os-cover')}<p>${esc(selected.body)}</p>${meta('Район',selected.district)}${meta('Категория',PLACE_TYPES[selected.category])}${meta('Контакт',selected.contact)}<div class="os-actions">${mb('focus','Показать на карте',`data-id="${selected.id}"`,'crosshairs')}${button('sharePlace','Отправить место',`data-id="${selected.id}"`,'paper-plane')}${user.isGM?button('place','Изменить',`data-id="${selected.id}"`,'pen')+mb('move','Переместить',`data-id="${selected.id}"`,'arrows-up-down-left-right'):''}</div>`):''}</div></div>`;
   }
   if(page==='news') {
-    const selected=articles.filter(a=>!app.osSavedOnly||(os.saved?.[number]??[]).includes(a.id));
-    content=start('Data Pool','НОВОСТИ ГОРОДА · ОТКРЫТЫЕ ДАННЫЕ',button('newsFilter',app.osSavedOnly?'Вся лента':'Закладки','','bookmark')+(user.isGM?button('article','Публикация','','plus'):''))+search(app,'Поиск по заголовкам, тексту и источникам')+`<div class="os-news-grid">${selected.map(a=>section(a.title,`${img(a.image,'os-cover')}<div class="os-actions">${badge(a.source||'Городская лента')}${badge(a.category)}${badge(publicationLabel(a))}${!a.published?badge('Черновик мастера'):''}</div><p class="os-pre">${esc(a.body)}</p><div class="os-actions">${button('bookmark',(os.saved?.[number]??[]).includes(a.id)?'В закладках':'Сохранить',`data-id="${a.id}"`,'bookmark')}${button('articleFile','В файл',`data-id="${a.id}"`,'file-lines')}${button('shareArticle','Отправить',`data-id="${a.id}"`,'paper-plane')}${user.isGM?button('article','Изменить',`data-id="${a.id}"`,'pen'):''}</div>`).replace('<section class="os-card">',`<section class="os-card" data-os-search="${searchable(a.title+' '+a.body+' '+a.source+' '+a.category)}">`)).join('')||empty('Лента пока пуста','Мастер может публиковать новости, слухи и объявления для всей группы или выбранных получателей.')}</div>`;
+    const trash=user.isGM&&app.osNewsTrash,removed=Object.values(os.articleTrash??{});
+    const selected=trash?removed.sort((a,b)=>b.deletedAt-a.deletedAt):articles.filter(a=>!app.osSavedOnly||(os.saved?.[number]??[]).includes(a.id));
+    const headingActions=(trash?'':button('newsFilter',app.osSavedOnly?'Вся лента':'Закладки','','bookmark'))+
+      (user.isGM?button('newsTrash',trash?'Назад в ленту':`Удалённые (${removed.length})`,'',trash?'arrow-left':'trash-can')+(trash?'':button('article','Публикация','','plus')):'');
+    content=start(trash?'Удалённые публикации':'Data Pool',trash?'ВОССТАНОВЛЕНИЕ · ТОЛЬКО ДЛЯ МАСТЕРА':'НОВОСТИ ГОРОДА · ОТКРЫТЫЕ ДАННЫЕ',headingActions)+
+      search(app,'Поиск по заголовкам, тексту и источникам')+`<div class="os-news-grid">${selected.map(a=>{
+        const audienceLabel=!a.published?'Черновик мастера':articleAudience(a)==='all'?'Видно всем игрокам':'Выбранные Агенты';
+        const actions=trash?button('articleRestore','Восстановить',`data-id="${a.id}"`,'rotate-left'):
+          button('bookmark',(os.saved?.[number]??[]).includes(a.id)?'В закладках':'Сохранить',`data-id="${a.id}"`,'bookmark')+
+          button('articleFile','В файл',`data-id="${a.id}"`,'file-lines')+button('shareArticle','Отправить',`data-id="${a.id}"`,'paper-plane')+
+          (user.isGM?button('article','Изменить',`data-id="${a.id}"`,'pen')+button('articleDelete','Удалить',`data-id="${a.id}" class="os-danger"`,'trash-can'):'');
+        return section(a.title,`${img(a.image,'os-cover')}<div class="os-actions">${badge(a.source||'Городская лента')}${badge(a.category)}${badge(publicationLabel(a))}${user.isGM?badge(trash?'Удалено · '+audienceLabel:audienceLabel):''}</div><p class="os-pre">${esc(a.body)}</p><div class="os-actions">${actions}</div>`)
+          .replace('<section class="os-card">',`<section class="os-card" data-os-search="${searchable(a.title+' '+a.body+' '+a.source+' '+a.category)}">`);
+      }).join('')||empty(trash?'Нет удалённых публикаций':'Лента пока пуста',trash?'Удалённые новости можно восстановить с прежней датой и доступом.':'Мастер может публиковать новости, слухи и объявления для всей группы или выбранных получателей.')}</div>`;
   }
   if(page==='files') {
     let docs=Object.values(state.documents??{}).filter(d=>user.isGM||d.canEdit||canReadDocument(state,d,user,user.viewedScene)||!d.holders);

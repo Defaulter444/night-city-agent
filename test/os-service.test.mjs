@@ -24,6 +24,34 @@ function reset(){
 }
 const run=(op,data={},by='p')=>socket.handlers.get('osOperation').call({socketdata:{userId:by}},{number:'1111-1111',op,...data});
 
+test('public news reaches the actual player view, updates refresh clients, and GM removal can be restored',async()=>{
+ reset();
+ const id=await run('article',{title:'Общая публикация',published:true,publicationDate:'2045-09-30',publicationTime:'23:40'},'gm');
+ for(const id of ['p','q'])assert.ok(delivered.some(d=>d.name==='refresh'&&d.ids.includes(id)));
+ await run('saveArticle',{id});
+ game.user=p;
+ let html=OSContext({num:'1111-1111',osTab:'news'},D.projectState(state,p)).osContent;
+ assert.ok(html.includes('Общая публикация'));assert.equal(html.includes('data-os="articleDelete"'),false);assert.equal(html.includes('data-os="newsTrash"'),false);
+ game.user=gm;
+ const before=structuredClone(state);delivered=[];failWrite=true;
+ await assert.rejects(run('articleDelete',{id},'gm'),/disk rejected/);
+ assert.deepEqual(state,before);assert.deepEqual(delivered,[]);failWrite=false;
+ await assert.rejects(run('articleDelete',{id,senderId:'gm'}),/мастер/);assert.deepEqual(state,before);
+ await run('articleDelete',{id},'gm');
+ assert.ok(delivered.some(d=>d.name==='refresh'&&d.ids.includes('p')));
+ game.user=p;
+ html=OSContext({num:'1111-1111',osTab:'news',osNewsTrash:true},D.projectState(state,p)).osContent;
+ assert.equal(html.includes('Общая публикация'),false);assert.deepEqual(state.os.saved['1111-1111'],[]);
+ game.user=gm;
+ html=OSContext({num:'1111-1111',osTab:'news',osNewsTrash:true},state).osContent;
+ assert.ok(html.includes('Общая публикация'));assert.ok(html.includes('data-os="articleRestore"'));
+ failWrite=true;const deleted=structuredClone(state);
+ await assert.rejects(run('articleRestore',{id},'gm'),/disk rejected/);assert.deepEqual(state,deleted);failWrite=false;
+ await run('articleRestore',{id},'gm');
+ game.user=p;html=OSContext({num:'1111-1111',osTab:'news'},D.projectState(state,p)).osContent;
+ assert.ok(html.includes('Общая публикация'));assert.ok(html.includes('30.09.2045, 23:40'));
+});
+
 test('GM publication dates persist through socket writes and render in chronological order for players',async()=>{
  reset();
  const early=await run('article',{title:'Ранняя новость',publicationDate:'2045-09-29',publicationTime:'23:59',published:true,public:true},'gm');
@@ -53,6 +81,8 @@ test('the actual GM article editor retains manually chosen date and time',async(
    assert.match(content,/name="publicationDate" type="date" value="2045-09-30"/);
    assert.match(content,/name="publicationTime" type="time" value="23:40"/);
    assert.match(content,/Дата публикации/);assert.match(content,/Время публикации/);
+   assert.match(content,/Видно игрокам/);assert.match(content,/name="audience"/);assert.match(content,/value="all" selected/);
+   assert.equal(content.includes('name="public"'),false);
  } finally {globalThis.Dialog=previous;}
 });
 

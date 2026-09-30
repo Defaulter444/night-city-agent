@@ -9,7 +9,7 @@ import { esc, now, makeDeadline, deadlineDue, deadlineRemaining } from './clock.
 import { publicationFormValues } from './publication-time.mjs';
 import { clockAction, updateClockElements } from './clock-ui.mjs';
 import { openNoteResult } from './notes.mjs';
-import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP } from './os-model.mjs';
+import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP, articleAudience } from './os-model.mjs';
 import { actorForDevice, transfer, hasLedger, isNPCDevice, payFromNPC } from './wealth.mjs';
 import { clearOpenThread } from './presence.mjs';
 import { stopRing, ringKey } from './ringtone.mjs';
@@ -24,8 +24,9 @@ async function imageValue(fd,old='',maxBytes=1500000) {
   const file=fd.get('upload');if(file?.size)return shrinkImage(file,{maxBytes,maxSide:maxBytes<300000?512:1600,outputType:'image/webp'});
   return String(fd.get('image')||'').trim()||old;
 }
-function audience(state,record={}) {
+function audience(state,record={},article=false) {
   if(!game.user.isGM)return '<p class="hint">Личное задание доступно вам и мастеру.</p>';
+  if(article)return `<fieldset class="os-audience"><legend>Доступ к публикации</legend>${check('published','Видно игрокам',record.published)}${select('audience','Кто видит публикацию',{all:'Все игроки',selected:'Выбранные Агенты'},articleAudience(record))}<details ${articleAudience(record)==='selected'?'open':''}><summary>Номера получателей</summary><p class="hint">Используются только для аудитории «Выбранные Агенты».</p>${Object.values(state.devices).map(d=>check(`aud-${d.num}`,`${d.label||d.num} · ${d.num}`,record.numbers?.includes(d.num))).join('')}</details><p class="hint">Снимите «Видно игрокам», чтобы оставить черновик только у Мастера.</p></fieldset>`;
   return `<fieldset class="os-audience"><legend>Доступ</legend>${check('published','Опубликовать для игроков',record.published)}${check('public','Для всех Агентов',record.public)}<p class="hint">Либо выберите отдельные номера:</p>${Object.values(state.devices).map(d=>check(`aud-${d.num}`,`${d.label||d.num} · ${d.num}`,record.numbers?.includes(d.num))).join('')}</fieldset>`;
 }
 function audienceData(fd,state) {return {published:fd.has('published'),public:fd.has('public'),numbers:Object.keys(state.devices).filter(n=>fd.has(`aud-${n}`))};}
@@ -56,6 +57,16 @@ export async function performOS(app,event,target) {
     if(op==='contactFilter'){app.osContactFilter=target.dataset.filter;return;}
     if(op==='jobFilter'){app.osJobArchive=target.dataset.filter==='archive';return;}
     if(op==='newsFilter'){app.osSavedOnly=!app.osSavedOnly;return;}
+    if(op==='newsTrash'){if(!user.isGM)throw Error('Доступно только мастеру');app.osNewsTrash=!app.osNewsTrash;return;}
+    if(op==='articleDelete') {
+      if(!user.isGM)throw Error('Доступно только мастеру');
+      const article=os.articles?.[target.dataset.id];if(!article)throw Error('Публикация больше не существует');
+      await inputDialog('Удалить публикацию?',`<p>«${esc(article.title)}» исчезнет из ленты и закладок всех Агентов.</p><p class="hint">Мастер сможет восстановить её в разделе «Удалённые».</p>`,()=>mutate('articleDelete',{id:article.id}),{saveLabel:'Удалить'});return;
+    }
+    if(op==='articleRestore') {
+      if(!user.isGM)throw Error('Доступно только мастеру');
+      await mutate('articleRestore',{id:target.dataset.id});return;
+    }
     if(op==='fileFilter'){app.osFileType=target.dataset.filter;return;}
     if(op==='documentSelect'){app.osDocId=target.dataset.id;return;}
     if(op==='placeSelect'||op==='gotoPlace'){
@@ -92,9 +103,9 @@ export async function performOS(app,event,target) {
           '<fieldset class="os-publication-time"><legend>Дата публикации</legend><div class="os-publication-fields">'+
           field('publicationDate','Дата публикации',publication.date,'date','required min="0001-01-01" max="9999-12-31"')+
           field('publicationTime','Время публикации',publication.time,'time','required step="60"')+
-          '</div><p class="hint">Игровая дата и время в ленте. Запись появится у игроков после включения «Опубликовать для игроков», независимо от указанной даты.</p></fieldset>';
+          '</div><p class="hint">Игровая дата и время в ленте. Запись появится у игроков после включения «Видно игрокам», независимо от указанной даты.</p></fieldset>';
       }
-      form+=imageFields(old.image||'')+audience(state,old);
+      form+=imageFields(old.image||'')+audience(state,old,op==='article');
       const rid=await inputDialog({job:'Задание',place:'Место на карте',article:'Публикация Data Pool'}[op],form,async fd=>mutate(op,{...Object.fromEntries([...fd.entries()].filter(([k])=>!k.startsWith('aud-')&&k!=='upload')),id:old.id,...audienceData(fd,state),image:await imageValue(fd,old.image)}));
       if(rid&&op==='place'){app.osPlaceId=rid;app.osMapCategory='';(app.osSearch??={}).map='';}return;
     }
