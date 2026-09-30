@@ -1,5 +1,5 @@
 import { readState, protectedStorage, storageLocked, enableProtection, importRecovery, recoveryBundle } from './store.mjs';
-import { projectState, legacyInventory } from './documents-model.mjs';
+import { projectState, legacyInventory, documentHidden, removedDocuments } from './documents-model.mjs';
 import { documentOperation, refreshState, getSocket, broadcastRefresh, UPDATE_HOOK } from './socket.mjs';
 import { esc, deadlineRemaining } from './clock.mjs';
 import { isStorageItem } from './documents-service.mjs';
@@ -42,7 +42,7 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = { id: 'nca-workspace', classes: ['nca-workspace'], tag: 'div',
     window: { title: 'Агент · Файлы и терминалы', icon: 'fa-solid fa-folder-open', resizable: true },
     position: { width: 900, height: 650 },
-    actions: Object.fromEntries(['chooseSection','openDocument','openDocumentImage','createDocument','editDocument','sendDocument','saveDocument','carrier','createTerminal','editTerminal','cloneTerminal','selectTerminal','entry','publish','openEntry','push','bind','preview','schedule','cancelSchedule','backup','protect','importKey','netExample'].map(name => [name, action])) };
+    actions: Object.fromEntries(['chooseSection','openDocument','openDocumentImage','createDocument','editDocument','deleteDocument','hideDocument','restoreDocument','showDocument','sendDocument','saveDocument','carrier','createTerminal','editTerminal','cloneTerminal','selectTerminal','entry','publish','openEntry','push','bind','preview','schedule','cancelSchedule','backup','protect','importKey','netExample'].map(name => [name, action])) };
   static PARTS = { body: { template: 'modules/night-city-agent/templates/workspace.hbs', scrollable: ['.nca-library-list','.nca-reader'] } };
   constructor(options = {}) {
     const { tab = 'files', number = null, documentId = null, terminalId = null, recipient = null } = options;
@@ -58,24 +58,28 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     let state = locked ? { devices: {}, documents: {}, terminals: {} } : readState();
     const all = state;
     if (this.previewUser) state = projectState(state, game.users.get(this.previewUser), game.user.viewedScene);
-    const documents = Object.values(state.documents ?? {}), terminals = Object.values(state.terminals ?? {});
+    const viewer=this.previewUser?game.users.get(this.previewUser):game.user;
+    const removed=removedDocuments(state,viewer);
+    const documents = this.tab==='trash'?removed:Object.values(state.documents ?? {}).filter(d=>!documentHidden(state,d.id,viewer)), terminals = Object.values(state.terminals ?? {});
     const owned = Object.values(state.devices).filter(d => game.user.isGM || d.owner === game.user.id);
     this.number ||= owned[0]?.num;
     const terminal = state.terminals?.[this.terminalId] || null;
-    const document = state.documents?.[this.documentId] || null;
+    const document = (this.tab==='trash'?removed.find(d=>d.id===this.documentId):state.documents?.[this.documentId]) || null;
     return { gm: game.user.isGM, locked, protected: protectedStorage(), tab: this.tab,
-      filesTab: this.tab === 'files', terminalsTab: this.tab === 'terminals', storageTab: this.tab === 'storage', scheduledTab: this.tab === 'scheduled',
-      documents: documents.map(d => ({ ...d, selected: d.id === this.documentId })), document,
+      filesTab: this.tab === 'files', trashTab:this.tab==='trash', filesList:this.tab==='files'||this.tab==='trash',removedCount:removed.length,
+      terminalsTab: this.tab === 'terminals', storageTab: this.tab === 'storage', scheduledTab: this.tab === 'scheduled',
+      documents: documents.map(d => ({ ...d, selected: d.id === this.documentId,removalLabel:d.removal==='global'?'Удалён для всех':d.removal==='personal'?'Убран из моего списка':'' })), document,
       terminals: terminals.map(t => ({ ...t, selected: t.id === this.terminalId })), terminal,
       editable: game.user.isGM && !this.previewUser,
       canEditDocument: Boolean(document && !this.previewUser && (game.user.isGM || document.canEdit === true)),
+      personalRemoval:Boolean(document&&(document.removal==='personal'||documentHidden(state,document.id,viewer))),
       preview: this.previewUser ? game.users.get(this.previewUser)?.name : '',
       entries: (terminal?.entries ?? []).map(e => ({ ...e, random: Boolean(e.tableUuid || e.random) })),
       scheduled: (all.scheduled ?? []).filter(e => e.status === 'pending').map(e => ({ ...e, when: e.clock !== 'real' ? (deadlineRemaining(e)===null?'Календарь недоступен':`Через ${Math.max(0,Math.ceil(deadlineRemaining(e)/60))} мин. игрового времени`) : new Date(e.due * 1000).toLocaleString('ru-RU') })),
       counts: legacyInventory(all), number: this.number };
   }
   async perform(name, target) {
-    if (name === 'chooseSection') { this.tab = target.dataset.tab; this.previewUser = null; return; }
+    if (name === 'chooseSection') { this.tab = target.dataset.tab; this.previewUser = null;this.documentId=null; return; }
     if (name === 'backup') { download(recoveryBundle()); return; }
     if (name === 'protect') {
       const ok = await Dialog.confirm({ title: 'Защита переписки', content: '<p>Будет скачан файл восстановления: резервная копия и ключ. Сохраните его вне папки Foundry Data. Он понадобится при смене браузера или компьютера мастера.</p><p>Контакты и история будут проверены перед переносом. Данные в мире станут зашифрованными.</p>' });
@@ -90,10 +94,21 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (storageLocked()) throw Error('Сначала импортируйте ключ восстановления');
     const state = readState();
+    if (['deleteDocument','hideDocument'].includes(name)) {
+      if(this.previewUser)throw Error('В режиме просмотра нельзя изменять файлы');
+      const doc=state.documents?.[this.documentId];if(!doc)throw Error('Файл больше недоступен');
+      const global=name==='deleteDocument';
+      const id=await inputDialog(global?'Удалить файл для всех?':'Убрать файл из моего списка?',`<p>«${esc(doc.title)}» ${global?'станет недоступен всем участникам, в том числе во вложениях и терминалах.':'исчезнет из вашего списка файлов. Другие участники и вложения в переписке сохранят доступ.'}</p><p class="hint">${global?'Автор или Мастер':'Вы'} сможете восстановить его через «Удалённые файлы».</p>`,()=>documentOperation(name,{documentId:doc.id}),{saveLabel:global?'Удалить':'Убрать'});
+      if(id)this.documentId=null;return;
+    }
+    if (['restoreDocument','showDocument'].includes(name)) {
+      if(this.previewUser)throw Error('В режиме просмотра нельзя изменять файлы');
+      await documentOperation(name,{documentId:this.documentId});this.tab='files';return;
+    }
     if (name === 'openDocument') { this.documentId = target.dataset.id; return; }
     if (name === 'openDocumentImage') {
       const view = this.previewUser ? projectState(state, game.users.get(this.previewUser), game.user.viewedScene) : state;
-      const doc = view.documents?.[this.documentId], image = doc?.images?.[Number(target.dataset.index)];
+      const doc = view.documents?.[this.documentId]??view.documentTrash?.[this.documentId], image = doc?.images?.[Number(target.dataset.index)];
       if (!image) throw Error('Изображение недоступно');
       const Popout = typeof ImagePopout !== 'undefined' ? ImagePopout : foundry.applications.apps.ImagePopout;
       new Popout(image.src, { title: `${doc.title} · ${image.name}`, shareable: false }).render(true); return;

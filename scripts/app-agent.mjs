@@ -506,7 +506,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const aloud = M.speaksAloud(device);
     const messages = (this.num && this.other)
       ? M.thread(state, this.num, this.other).map((m, index) => ({
-          index, documentId: m.documentId, documentTitle: state.documents?.[m.documentId]?.title || 'Файл', contact: m.contact,
+          index, documentId: m.documentId, documentTitle: state.documents?.[m.documentId]?.title || 'Файл недоступен',documentUnavailable:Boolean(m.documentId&&!state.documents?.[m.documentId]), contact: m.contact,
           pinned: (state.organizer?.[this.num]?.pins ?? []).includes(`${M.threadKey(this.num,this.other)}:${index}`),
           mine: m.f === this.num,
           text: m.x,

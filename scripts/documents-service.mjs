@@ -23,6 +23,10 @@ export async function runDocumentOperation(data, callerId) {
   }
   return mutate(async state => {
     switch (data.op) {
+      case 'deleteDocument': return D.deleteDocument(state,data.documentId,user);
+      case 'restoreDocument': return D.restoreDocument(state,data.documentId,user);
+      case 'hideDocument': return D.setDocumentHidden(state,data.documentId,user,true);
+      case 'showDocument': return D.setDocumentHidden(state,data.documentId,user,false);
       case 'organize': return D.organize(state, data, user);
       case 'createDocument': {
         // Only the authenticated creator or an explicit GM assignment establishes authorship.
@@ -114,6 +118,7 @@ export async function runDocumentOperation(data, callerId) {
           const body = (draw.results ?? []).map(r => String(r.text ?? '')).join('\n\n');
           entry.documentId = D.createDocument(state, { title: entry.title, body, source: t.title }).id;
         }
+        if (!state.documents?.[entry.documentId]) throw Error('Файл удалён или больше недоступен');
         return entry.documentId;
       }
       case 'schedule': {

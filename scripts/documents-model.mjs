@@ -17,6 +17,49 @@ export function terminalAllowed(terminal, user, sceneId) {
 export function canEditDocument(doc, user) {
   return Boolean(doc && user && (user.isGM || (user.id && doc.authorId === user.id)));
 }
+export const documentHidden = (state, id, user) => Boolean(user?.id && Object.hasOwn(state.documentHidden?.[user.id] ?? {},id));
+export function removedDocuments(state, user) {
+  if (!user) return [];
+  const global = Object.values(state.documentTrash ?? {}).filter(doc => user?.isGM || doc.canRestore || canEditDocument(doc,user))
+    .map(doc => ({...doc,removal:'global',removedAt:doc.deletedAt}));
+  const personal = Object.entries(state.documentHidden?.[user?.id] ?? {}).flatMap(([id,removedAt]) => {
+    const doc=state.documents?.[id];
+    return doc && (doc.canEdit !== undefined || canReadDocument(state,doc,user,user?.viewedScene)) ? [{...doc,removal:'personal',removedAt}] : [];
+  });
+  return [...global,...personal].sort((a,b)=>b.removedAt-a.removedAt);
+}
+const documentId = id => {
+  if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(id) || ['__proto__','constructor','prototype'].includes(id)) throw Error('Некорректный идентификатор файла');
+  return id;
+};
+export function deleteDocument(state, id, user, now=Date.now()) {
+  id=documentId(id);
+  const doc=state.documents?.[id],removed=state.documentTrash?.[id];
+  if (!canEditDocument(doc || removed,user)) throw Error('Удалить файл может только его автор или Мастер');
+  if (!doc) return id;
+  if (removed) throw Error('Файл с таким идентификатором уже находится в удалённых');
+  (state.documentTrash ??= {})[id]={...clone(doc),deletedAt:now,deletedBy:user.id};
+  delete state.documents[id];
+  return id;
+}
+export function restoreDocument(state, id, user) {
+  id=documentId(id);
+  const doc=state.documentTrash?.[id],active=state.documents?.[id];
+  if (!canEditDocument(doc || active,user)) throw Error('Восстановить файл может только его автор или Мастер');
+  if (!doc) return id;
+  if (active) throw Error('Файл с таким идентификатором уже существует');
+  const restored=clone(doc);delete restored.deletedAt;delete restored.deletedBy;
+  (state.documents ??= {})[id]=restored;
+  delete state.documentTrash[id];
+  return id;
+}
+export function setDocumentHidden(state, id, user, hidden, now=Date.now()) {
+  id=documentId(id);
+  if (!user?.id || !canReadDocument(state,state.documents?.[id],user,user.viewedScene)) throw Error('Файл недоступен');
+  const own=((state.documentHidden ??= {})[user.id] ??= {});
+  if (hidden) own[id]=now;else delete own[id];
+  return id;
+}
 export function canReadDocument(state, doc, user, sceneId = '') {
   if (!doc) return false;
   if (canEditDocument(doc, user) || doc.readers?.includes(user?.id)) return true;
@@ -45,6 +88,12 @@ export function projectState(state, user, sceneId = '') {
     out.documents[doc.id] = { id: doc.id, title: doc.title, body: doc.body, source: doc.source, createdAt: doc.createdAt, canEdit: canEditDocument(doc, user) };
     if (doc.images?.length) out.documents[doc.id].images = clone(doc.images);
   }
+  out.documentTrash={};
+  for (const doc of Object.values(state.documentTrash ?? {})) if (canEditDocument(doc,user)) {
+    out.documentTrash[doc.id]={id:doc.id,title:doc.title,body:doc.body,source:doc.source,createdAt:doc.createdAt,deletedAt:doc.deletedAt,canRestore:true};
+    if (doc.images?.length) out.documentTrash[doc.id].images=clone(doc.images);
+  }
+  out.documentHidden=user?.id?{[user.id]:clone(state.documentHidden?.[user.id] ?? {})}:{};
   for (const t of Object.values(state.terminals ?? {})) if (terminalAllowed(t, user, sceneId)) {
     out.terminals[t.id] = { id: t.id, title: t.title, portable: t.portable, sceneId: t.sceneId,
       entries: (t.entries ?? []).filter(e => e.published).map(e => ({ id: e.id, title: e.title, kind: e.kind, documentId: e.documentId, random: Boolean(e.tableUuid) })) };

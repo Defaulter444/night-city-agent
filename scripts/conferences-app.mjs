@@ -62,7 +62,7 @@ export class ConferencesApp extends HandlebarsApplicationMixin(ApplicationV2) {
       messages: (room?.messages ?? []).map((m,index) => ({ ...m, index, mine: m.f === this.number,
         sender: senderLabel(state,this.number,m.f), time: messageTime(m), timeTitle: messageTimeTitle(m),
         aloud: m.a === 1 || (m.f !== this.number && speaksAloud(state.devices[this.number])),
-        documentTitle: state.documents?.[m.documentId]?.title || 'Файл' })) };
+        documentTitle: state.documents?.[m.documentId]?.title || 'Файл недоступен',documentUnavailable:Boolean(m.documentId&&!state.documents?.[m.documentId]) })) };
   }
   async saveDraft() {
     clearTimeout(this.timer);

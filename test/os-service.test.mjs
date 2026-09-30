@@ -88,10 +88,35 @@ test('the actual GM article editor retains manually chosen date and time',async(
 
 test('opening an attachment or a new file clears filters that would hide it',async()=>{
  const {selectOSDocument}=await import('../scripts/os-controller.mjs');
- const app={osTab:'files',osFileType:'notes',osFolder:'Another folder',osSearch:{files:'unrelated',contacts:'Ви'}};
+ const app={osTab:'files',osFileTrash:true,osFileType:'notes',osFolder:'Another folder',osSearch:{files:'unrelated',contacts:'Ви'}};
  selectOSDocument(app,'test-document');
  assert.equal(app.osDocId,'test-document');assert.equal(app.osFileType,'');assert.equal(app.osFolder,'');
+ assert.equal(app.osFileTrash,false);
  assert.equal(app.osSearch.files,'');assert.equal(app.osSearch.contacts,'Ви');
+});
+
+test('file views distinguish global author deletion from personal removal and retain attachment access',async()=>{
+ reset();
+ const doc=D.createDocument(state,{title:'Файл расследования',body:'Текст',holders:['1111-1111','2222-2222'],authorId:'p'});
+ game.user=p;
+ let html=OSContext({num:'1111-1111',osTab:'files',osDocId:doc.id},D.projectState(state,p)).osContent;
+ assert.ok(html.includes('data-os="documentDelete"'));assert.equal(html.includes('data-os="documentHide"'),false);
+ game.user=q;
+ html=OSContext({num:'2222-2222',osTab:'files',osDocId:doc.id},D.projectState(state,q)).osContent;
+ assert.ok(html.includes('data-os="documentHide"'));assert.equal(html.includes('data-os="documentDelete"'),false);
+ D.setDocumentHidden(state,doc.id,q,true,1);
+ html=OSContext({num:'2222-2222',osTab:'files'},D.projectState(state,q)).osContent;
+ assert.equal(html.includes(`data-os="documentSelect" data-id="${doc.id}"`),false);
+ html=OSContext({num:'2222-2222',osTab:'files',osDocId:doc.id,osFileTrash:true},D.projectState(state,q)).osContent;
+ assert.ok(html.includes('data-os="documentShow"'));assert.ok(html.includes('Убран из моего списка'));
+ html=OSContext({num:'2222-2222',osTab:'files',osDocId:doc.id},D.projectState(state,q)).osContent;
+ assert.ok(html.includes('Текст'));assert.ok(html.includes('data-os="documentShow"'));
+ D.deleteDocument(state,doc.id,p,2);
+ html=OSContext({num:'2222-2222',osTab:'files',osFileTrash:true},D.projectState(state,q)).osContent;
+ assert.equal(html.includes('Файл расследования'),false);
+ game.user=p;
+ html=OSContext({num:'1111-1111',osTab:'files',osDocId:doc.id,osFileTrash:true},D.projectState(state,p)).osContent;
+ assert.ok(html.includes('data-os="documentRestore"'));assert.equal(html.includes('data-os="documentSend"'),false);
 });
 
 test('OS transport authenticates caller and requires document read access for personal metadata',async()=>{

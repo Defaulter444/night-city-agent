@@ -36,7 +36,7 @@ function chooseNumbers(state,number,{exclude=[],selected=[]}={}) {
 }
 const memberValues=fd=>[...new Set([...fd.getAll('members'),...String(fd.get('extra')||'').split(/[,;]+/).filter(s=>s.trim())].map(normalizeNumber))];
 export function selectOSDocument(app,id) {
-  app.osDocId=id;app.osTab='files';app.osFileType='';app.osFolder='';(app.osSearch??={}).files='';
+  app.osDocId=id;app.osTab='files';app.osFileTrash=false;app.osFileType='';app.osFolder='';(app.osSearch??={}).files='';
 }
 async function sendTextDialog(state,number,title,text) {
   const operationId=uid();
@@ -68,6 +68,19 @@ export async function performOS(app,event,target) {
       await mutate('articleRestore',{id:target.dataset.id});return;
     }
     if(op==='fileFilter'){app.osFileType=target.dataset.filter;return;}
+    if(op==='fileTrash'){app.osFileTrash=!app.osFileTrash;app.osDocId=null;app.osFileType='';app.osFolder='';(app.osSearch??={}).files='';return;}
+    if(op==='documentDelete'||op==='documentHide') {
+      const doc=state.documents?.[target.dataset.id];if(!doc)throw Error('Файл больше недоступен');
+      const global=op==='documentDelete';
+      if(global&&!user.isGM&&!doc.canEdit&&!canEditDocument(doc,user))throw Error('Удалить файл может только его автор или Мастер');
+      const result=await inputDialog(global?'Удалить файл для всех?':'Убрать файл из моего списка?',`<p>«${esc(doc.title)}» ${global?'станет недоступен всем участникам, в том числе во вложениях и терминалах.':'исчезнет из вашего списка файлов. Другие участники и вложения в переписке сохранят доступ.'}</p><p class="hint">${global?'Автор или Мастер':'Вы'} сможете восстановить его через «Удалённые файлы».</p>`,()=>documentOperation(global?'deleteDocument':'hideDocument',{documentId:doc.id}),{saveLabel:global?'Удалить':'Убрать'});
+      if(result)app.osDocId=null;return;
+    }
+    if(op==='documentRestore'||op==='documentShow') {
+      const id=target.dataset.id;
+      await documentOperation(op==='documentRestore'?'restoreDocument':'showDocument',{documentId:id});
+      selectOSDocument(app,id);return;
+    }
     if(op==='documentSelect'){app.osDocId=target.dataset.id;return;}
     if(op==='placeSelect'||op==='gotoPlace'){
       app.osPlaceId=target.dataset.id;app.osTab='map';
@@ -150,7 +163,7 @@ export async function performOS(app,event,target) {
     }
     if(op==='documentWorkspace'){openWorkspace({number,documentId:target.dataset.id,tab:'files'});return;}
     if(op==='documentImage') {
-      const doc=state.documents?.[target.dataset.id],image=doc?.images?.[Number(target.dataset.index)];if(!image)throw Error('Картинка недоступна');
+      const doc=state.documents?.[target.dataset.id]??state.documentTrash?.[target.dataset.id],image=doc?.images?.[Number(target.dataset.index)];if(!image)throw Error('Картинка недоступна');
       new ImagePopout(image.src,{title:doc.title,shareable:false}).render(true);return;
     }
     if(op==='notePage') {

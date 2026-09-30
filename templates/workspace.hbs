@@ -1,6 +1,7 @@
 <div class="nca-library">
   <nav class="nca-library-nav" aria-label="Разделы Агента">
     <button data-action="chooseSection" data-tab="files" aria-pressed="{{filesTab}}" class="{{#if filesTab}}active{{/if}}"><i class="fa-solid fa-folder-open"></i> Файлы</button>
+    <button data-action="chooseSection" data-tab="trash" aria-pressed="{{trashTab}}" class="{{#if trashTab}}active{{/if}}"><i class="fa-solid fa-trash-can"></i> Удалённые файлы ({{removedCount}})</button>
     <button data-action="chooseSection" data-tab="terminals" aria-pressed="{{terminalsTab}}" class="{{#if terminalsTab}}active{{/if}}"><i class="fa-solid fa-desktop"></i> Терминалы</button>
     {{#if gm}}<button data-action="chooseSection" data-tab="scheduled" class="{{#if scheduledTab}}active{{/if}}"><i class="fa-regular fa-clock" aria-hidden="true"></i> Сообщения NPC</button><button data-action="chooseSection" data-tab="storage" class="{{#if storageTab}}active{{/if}}"><i class="fa-solid fa-database" aria-hidden="true"></i> Данные</button>{{/if}}
     <button data-action="netExample" title="Как это связано с Нетраннингом"><i class="fa-solid fa-diagram-project"></i></button>
@@ -24,8 +25,8 @@
     {{#if preview}}<div class="nca-preview-note">Просмотр: {{preview}}. Данные миссии не меняются. <button data-action="preview">Вернуться к мастеру</button></div>{{/if}}
     <div class="nca-library-layout">
       <aside class="nca-library-list">
-      {{#if filesTab}}<header><h2>Файлы</h2><button data-action="createDocument" title="Создать файл"><i class="fa-solid fa-plus"></i></button></header>
-        {{#each documents}}<button class="nca-library-card {{#if selected}}active{{/if}}" data-action="openDocument" data-id="{{id}}"><strong>{{title}}</strong><small>{{source}}</small></button>{{else}}<p class="nca-muted">Здесь появятся созданные и полученные файлы.</p>{{/each}}
+      {{#if filesList}}<header><h2>{{#if trashTab}}Удалённые файлы{{else}}Файлы{{/if}}</h2>{{#unless trashTab}}<button data-action="createDocument" title="Создать файл"><i class="fa-solid fa-plus"></i></button>{{/unless}}</header>
+        {{#each documents}}<button class="nca-library-card {{#if selected}}active{{/if}}" data-action="openDocument" data-id="{{id}}"><strong>{{title}}</strong><small>{{source}}</small>{{#if removalLabel}}<small>{{removalLabel}}</small>{{/if}}</button>{{else}}<p class="nca-muted">{{#if trashTab}}Нет удалённых файлов.{{else}}Здесь появятся созданные и полученные файлы.{{/if}}</p>{{/each}}
       {{else}}<header><h2>Терминалы</h2>{{#if editable}}<button data-action="createTerminal" title="Создать терминал"><i class="fa-solid fa-plus"></i></button>{{/if}}</header>
         {{#each terminals}}<button class="nca-library-card {{#if selected}}active{{/if}}" data-action="selectTerminal" data-id="{{id}}"><strong>{{title}}</strong><small>{{#if portable}}Переносной{{else}}На сцене{{/if}}</small></button>{{else}}<p class="nca-muted">Доступных терминалов на этой сцене нет.</p>{{/each}}
       {{/if}}
@@ -38,7 +39,18 @@
           {{#if document.images}}<div class="nca-document-images" role="group" aria-label="Изображения файла">
             {{#each document.images}}<figure><button type="button" data-action="openDocumentImage" data-index="{{@index}}" aria-label="Открыть изображение: {{name}}" title="Открыть в полном размере"><img src="{{src}}" alt="{{name}}" loading="lazy"><span><i class="fa-solid fa-expand" aria-hidden="true"></i> Открыть</span></button><figcaption>{{name}}</figcaption></figure>{{/each}}
           </div>{{/if}}
-          {{#unless preview}}<footer><button data-action="saveDocument">Сохранить в Агент</button><button data-action="sendDocument">Отправить</button><button data-action="carrier">На носитель</button>{{#if canEditDocument}}<button data-action="editDocument">Редактировать</button>{{/if}}</footer>{{/unless}}
+          {{#unless preview}}<footer>
+            {{#if trashTab}}
+              {{#if personalRemoval}}<button data-action="showDocument"><i class="fa-solid fa-rotate-left"></i> Восстановить</button>
+              {{else}}<button data-action="restoreDocument"><i class="fa-solid fa-rotate-left"></i> Восстановить</button>{{/if}}
+            {{else}}
+              <button data-action="saveDocument">Сохранить в Агент</button><button data-action="sendDocument">Отправить</button><button data-action="carrier">На носитель</button>
+              {{#if canEditDocument}}<button data-action="editDocument">Редактировать</button>{{/if}}
+              {{#if personalRemoval}}<button data-action="showDocument">Вернуть в мои файлы</button>
+              {{else}}{{#if canEditDocument}}<button data-action="deleteDocument"><i class="fa-solid fa-trash-can"></i> Удалить</button>
+              {{else}}<button data-action="hideDocument"><i class="fa-solid fa-trash-can"></i> Убрать из моих файлов</button>{{/if}}{{/if}}
+            {{/if}}
+          </footer>{{/unless}}
         </article>{{else}}<div class="nca-library-empty"><i class="fa-regular fa-file-lines"></i>{{#if terminalsTab}}{{#if terminal}}<h2>Откройте запись</h2><p>Выберите письмо или файл в списке выше.</p>{{else}}<h2>Выберите терминал</h2><p>Здесь появятся доступные письма и файлы.</p>{{/if}}{{else}}<h2>Выберите файл</h2><p>Чтение, сохранение и передача данных — в одном месте.</p>{{/if}}</div>{{/if}}
       </section>
     </div>
