@@ -187,3 +187,6 @@
 @media(prefers-reduced-motion:reduce) {.nca-os * {animation:none!important;transition:none!important;}}
 /* Agent OS palette for dropdown items (see agent-modern.css: core option background is light). */
 .nca-os .os-page select :is(option,optgroup) {background:#10232b!important;color:#e5f3f6!important;-webkit-text-fill-color:#e5f3f6!important;}
+.nca-input-dialog .os-publication-time {margin:14px 0;padding:12px;border:1px solid #42606a;}
+.nca-input-dialog .os-publication-fields {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}
+.nca-input-dialog .os-publication-fields input {min-width:0;width:100%;color-scheme:dark;}

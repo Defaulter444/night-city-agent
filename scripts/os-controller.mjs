@@ -5,7 +5,8 @@ import { editDocumentDialog } from './document-editor.mjs';
 import { contactLabel, contactsFor, normalizeNumber } from './model.mjs';
 import { uid, canEditDocument } from './documents-model.mjs';
 import { shrinkImage, ALLOWED_TYPES } from './images.mjs';
-import { esc, makeDeadline, deadlineDue, deadlineRemaining } from './clock.mjs';
+import { esc, now, makeDeadline, deadlineDue, deadlineRemaining } from './clock.mjs';
+import { publicationFormValues } from './publication-time.mjs';
 import { clockAction, updateClockElements } from './clock-ui.mjs';
 import { openNoteResult } from './notes.mjs';
 import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP } from './os-model.mjs';
@@ -84,7 +85,15 @@ export async function performOS(app,event,target) {
       let form=field('title','Название',old.title,'text','required maxlength="160"')+area('body','Описание',old.body);
       if(op==='job') form+=select('status','Состояние',JOB_STATES,old.status||'planned')+field('reward','Награда, эдди',old.reward||0,'number','min="0" step="1"')+field('fixer','Заказчик',old.fixer)+field('due','Игровой срок',old.due,'text','placeholder="Сегодня, 23:00"')+select('placeId','Место',{'':'Без привязки',...Object.fromEntries(Object.values(os.places??{}).map(p=>[p.id,p.title]))},old.placeId)+area('steps','Этапы — по одному на строку',(old.steps??[]).map(s=>s.label).join('\n'));
       if(op==='place') form+=select('category','Категория',PLACE_TYPES,old.category||'place')+field('district','Район',old.district)+field('contact','Номер контакта',old.contact)+'<details class="os-map-coordinates"><summary>Точные координаты</summary>'+field('x','Положение по горизонтали, %',old.x??target.dataset.mapX??50,'number','min="0" max="100" step="0.01"')+field('y','Положение по вертикали, %',old.y??target.dataset.mapY??50,'number','min="0" max="100" step="0.01"')+'</details>';
-      if(op==='article')form+=field('source','Источник',old.source)+field('category','Раздел',old.category||'Новости');
+      if(op==='article') {
+        if(!user.isGM)throw Error('Доступно только мастеру');
+        const publication=publicationFormValues(old,now());
+        form+=field('source','Источник',old.source)+field('category','Раздел',old.category||'Новости')+
+          '<fieldset class="os-publication-time"><legend>Дата публикации</legend><div class="os-publication-fields">'+
+          field('publicationDate','Дата публикации',publication.date,'date','required min="0001-01-01" max="9999-12-31"')+
+          field('publicationTime','Время публикации',publication.time,'time','required step="60"')+
+          '</div><p class="hint">Игровая дата и время в ленте. Запись появится у игроков после включения «Опубликовать для игроков», независимо от указанной даты.</p></fieldset>';
+      }
       form+=imageFields(old.image||'')+audience(state,old);
       const rid=await inputDialog({job:'Задание',place:'Место на карте',article:'Публикация Data Pool'}[op],form,async fd=>mutate(op,{...Object.fromEntries([...fd.entries()].filter(([k])=>!k.startsWith('aud-')&&k!=='upload')),id:old.id,...audienceData(fd,state),image:await imageValue(fd,old.image)}));
       if(rid&&op==='place'){app.osPlaceId=rid;app.osMapCategory='';(app.osSearch??={}).map='';}return;

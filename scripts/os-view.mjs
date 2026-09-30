@@ -5,6 +5,7 @@ import { OS_TABS, JOB_STATES, PLACE_TYPES, visibleRecord, editableRecord, callsF
 import { actorForDevice, hasLedger, isNPCDevice } from './wealth.mjs';
 import { protectedStorage } from './store.mjs';
 import { canReadDocument, canEditDocument } from './documents-model.mjs';
+import { publicationLabel, comparePublications } from './publication-time.mjs';
 export const icon = name => `<i class="fa-solid fa-${name}" aria-hidden="true"></i>`;
 export const button = (op,label,attrs='',symbol='') => `<button type="button" data-action="osAction" data-os="${op}" ${attrs}>${symbol?icon(symbol):''}${esc(label)}</button>`;
 const direct = (action,label,symbol='') => `<button type="button" data-action="${action}">${symbol?icon(symbol):''}${esc(label)}</button>`;
@@ -12,7 +13,6 @@ const badge = s => `<span class="os-tag">${esc(s)}</span>`;
 const empty = (title,description) => `<div class="os-empty">${icon('satellite-dish')}<h3>${esc(title)}</h3><p>${esc(description)}</p></div>`;
 const section = (title,body,actions='') => `<section class="os-card"><div class="os-card-head"><h3>${esc(title)}</h3>${actions}</div>${body}</section>`;
 const img = (src,cls='os-thumb') => src?`<img class="${cls}" src="${esc(src)}" alt="" loading="lazy">`:'';
-const date = ms => new Date(ms).toLocaleDateString('ru-RU',{day:'2-digit',month:'short'});
 const money = value => Number(value||0).toLocaleString('ru-RU')+' эдди';
 const searchable = value => esc(String(value).toLocaleLowerCase('ru-RU'));
 export function contactPortrait(state,number,other) { return state.os?.contacts?.[number]?.[other]?.avatar || state.os?.profiles?.[other]?.avatar || ''; }
@@ -25,7 +25,7 @@ export function OSContext(app,state) {
   const page=app.osTab||'home', profile=os.profiles?.[number]??{}, map=cityMap(state);
   const npcPayer=user.isGM&&isNPCDevice(device),monitoring=user.isGM&&app.osCallScope!=='mine';
   const available=key=>Object.values(os[key]??{}).filter(r=>visibleRecord(state,r,user));
-  const jobs=available('jobs'),places=available('places'),articles=available('articles').sort((a,b)=>b.createdAt-a.createdAt);
+  const jobs=available('jobs'),places=available('places'),articles=available('articles').sort(comparePublications);
   const contacts=number?contactsFor(state,number):[];
   const devices=Object.values(state.devices).filter(d=>user.isGM||d.owner===user.id);
   const actor=device?actorForDevice(device):null;
@@ -82,7 +82,7 @@ export function OSContext(app,state) {
   }
   if(page==='news') {
     const selected=articles.filter(a=>!app.osSavedOnly||(os.saved?.[number]??[]).includes(a.id));
-    content=start('Data Pool','НОВОСТИ ГОРОДА · ОТКРЫТЫЕ ДАННЫЕ',button('newsFilter',app.osSavedOnly?'Вся лента':'Закладки','','bookmark')+(user.isGM?button('article','Публикация','','plus'):''))+search(app,'Поиск по заголовкам, тексту и источникам')+`<div class="os-news-grid">${selected.map(a=>section(a.title,`${img(a.image,'os-cover')}<div class="os-actions">${badge(a.source||'Городская лента')}${badge(a.category)}${badge(date(a.createdAt))}${!a.published?badge('Черновик мастера'):''}</div><p class="os-pre">${esc(a.body)}</p><div class="os-actions">${button('bookmark',(os.saved?.[number]??[]).includes(a.id)?'В закладках':'Сохранить',`data-id="${a.id}"`,'bookmark')}${button('articleFile','В файл',`data-id="${a.id}"`,'file-lines')}${button('shareArticle','Отправить',`data-id="${a.id}"`,'paper-plane')}${user.isGM?button('article','Изменить',`data-id="${a.id}"`,'pen'):''}</div>`).replace('<section class="os-card">',`<section class="os-card" data-os-search="${searchable(a.title+' '+a.body+' '+a.source+' '+a.category)}">`)).join('')||empty('Лента пока пуста','Мастер может публиковать новости, слухи и объявления для всей группы или выбранных получателей.')}</div>`;
+    content=start('Data Pool','НОВОСТИ ГОРОДА · ОТКРЫТЫЕ ДАННЫЕ',button('newsFilter',app.osSavedOnly?'Вся лента':'Закладки','','bookmark')+(user.isGM?button('article','Публикация','','plus'):''))+search(app,'Поиск по заголовкам, тексту и источникам')+`<div class="os-news-grid">${selected.map(a=>section(a.title,`${img(a.image,'os-cover')}<div class="os-actions">${badge(a.source||'Городская лента')}${badge(a.category)}${badge(publicationLabel(a))}${!a.published?badge('Черновик мастера'):''}</div><p class="os-pre">${esc(a.body)}</p><div class="os-actions">${button('bookmark',(os.saved?.[number]??[]).includes(a.id)?'В закладках':'Сохранить',`data-id="${a.id}"`,'bookmark')}${button('articleFile','В файл',`data-id="${a.id}"`,'file-lines')}${button('shareArticle','Отправить',`data-id="${a.id}"`,'paper-plane')}${user.isGM?button('article','Изменить',`data-id="${a.id}"`,'pen'):''}</div>`).replace('<section class="os-card">',`<section class="os-card" data-os-search="${searchable(a.title+' '+a.body+' '+a.source+' '+a.category)}">`)).join('')||empty('Лента пока пуста','Мастер может публиковать новости, слухи и объявления для всей группы или выбранных получателей.')}</div>`;
   }
   if(page==='files') {
     let docs=Object.values(state.documents??{}).filter(d=>user.isGM||d.canEdit||canReadDocument(state,d,user,user.viewedScene)||!d.holders);

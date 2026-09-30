@@ -1,6 +1,7 @@
 /** Additive Agent OS data. No conversion of existing books, documents or threads. */
 import { NUMBER_RE, normalizeNumber, pushMessage } from './model.mjs';
 import { imageIssue } from './images.mjs';
+import { publicationValue } from './publication-time.mjs';
 const clone = x => structuredClone(x);
 const id = () => [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2,'0')).join('');
 const text = (s, max=2000) => String(s ?? '').trim().slice(0,max);
@@ -90,7 +91,12 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
       if (![x,y].every(v=>Number.isFinite(v)&&v>=0&&v<=100)) throw Error('Положение метки должно быть от 0 до 100%');
       Object.assign(record,{x,y,category:Object.hasOwn(PLACE_TYPES,data.category)?data.category:'place',district:text(data.district,100), contact:text(data.contact,16)});
     }
-    if (op === 'article') Object.assign(record,{ source:text(data.source,120), category:text(data.category,40) || 'Новости' });
+    if (op === 'article') {
+      Object.assign(record,{ source:text(data.source,120), category:text(data.category,40) || 'Новости' });
+      if (Object.hasOwn(data,'publicationDate') || Object.hasOwn(data,'publicationTime')) {
+        record.publicationAt = publicationValue(data.publicationDate,data.publicationTime);
+      } else if (old?.publicationAt) record.publicationAt = old.publicationAt;
+    }
     (os[collection] ??= {})[rid] = record; return rid;
   }
   if (op === 'placeMove') {

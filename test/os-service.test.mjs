@@ -24,6 +24,38 @@ function reset(){
 }
 const run=(op,data={},by='p')=>socket.handlers.get('osOperation').call({socketdata:{userId:by}},{number:'1111-1111',op,...data});
 
+test('GM publication dates persist through socket writes and render in chronological order for players',async()=>{
+ reset();
+ const early=await run('article',{title:'Ранняя новость',publicationDate:'2045-09-29',publicationTime:'23:59',published:true,public:true},'gm');
+ const late=await run('article',{title:'Поздняя новость',publicationDate:'2045-09-30',publicationTime:'00:10',published:true,public:true},'gm');
+ const before=structuredClone(state);
+ await assert.rejects(run('article',{id:early,title:'Подделка',publicationDate:'2045-10-01',publicationTime:'12:00',senderId:'gm'}),/мастер/);
+ assert.deepEqual(state,before);
+ failWrite=true;
+ await assert.rejects(run('article',{id:late,title:'Потерянная правка',publicationDate:'2045-10-01',publicationTime:'12:00'},'gm'),/disk rejected/);
+ assert.deepEqual(state,before);failWrite=false;
+ game.user=p;
+ const html=OSContext({num:'1111-1111',osTab:'news'},D.projectState(state,p)).osContent;
+ assert.ok(html.includes('30.09.2045, 00:10'));assert.ok(html.includes('29.09.2045, 23:59'));
+ assert.ok(html.indexOf('Поздняя новость')<html.indexOf('Ранняя новость'));
+ assert.equal(html.includes('data-os="article"'),false);
+});
+
+test('the actual GM article editor retains manually chosen date and time',async()=>{
+ reset();
+ const id=await run('article',{title:'Новость',publicationDate:'2045-09-30',publicationTime:'23:40'},'gm');
+ const {performOS}=await import('../scripts/os-controller.mjs');
+ let content;
+ const previous=globalThis.Dialog;
+ globalThis.Dialog=class {constructor(data){this.data=data;content=data.content;}render(){this.data.close();return this;}};
+ try {
+   await performOS({num:'1111-1111',saveDraft:async()=>{},render(){}},null,{dataset:{os:'article',id}});
+   assert.match(content,/name="publicationDate" type="date" value="2045-09-30"/);
+   assert.match(content,/name="publicationTime" type="time" value="23:40"/);
+   assert.match(content,/Дата публикации/);assert.match(content,/Время публикации/);
+ } finally {globalThis.Dialog=previous;}
+});
+
 test('opening an attachment or a new file clears filters that would hide it',async()=>{
  const {selectOSDocument}=await import('../scripts/os-controller.mjs');
  const app={osTab:'files',osFileType:'notes',osFolder:'Another folder',osSearch:{files:'unrelated',contacts:'Ви'}};
