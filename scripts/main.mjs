@@ -19,6 +19,9 @@ import { checkOSReminders } from './os-controller.mjs';
 Hooks.once("init", () => {
   registerSettings();
   Clock.registerClockSettings();
+  for(const [key,label] of [["traumaMembershipNames","Травма Тим"],["reoMembershipNames","Мясовозка"]]) {
+    game.settings.register(MODULE_ID,key,{name:`${label}: точные названия подписок`,hint:"Для своих предметов: перечислите полные названия через точку с запятой. Метки подписок на предметах имеют приоритет. Пустое поле сохраняет обычное распознавание.",scope:"world",config:true,type:String,default:""});
+  }
   for (const [key,name] of [['osCompact','Агент: компактный корпус'],['osReducedMotion','Агент: уменьшить эффекты']]) game.settings.register(MODULE_ID,key,{name,scope:'client',config:false,type:Boolean,default:false});
   console.log("night-city-agent | настройки зарегистрированы");
 });

@@ -287,3 +287,13 @@
 @media (prefers-reduced-motion:reduce) {
   .nca-app *, .nca-workspace * { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 }
+/* Dropdown items: core paints <option> with the light --color-select-option-bg,
+   while Agent selects force a light text fill that the items inherit — white on light grey.
+   Items get the dark palette explicitly in every Agent window. */
+:is(.nca-app,.nca-workspace,.nca-dialog-app,.nca-input-dialog,.nca-document-dialog) select { color-scheme:dark; }
+:is(.nca-app,.nca-workspace,.nca-dialog-app,.nca-input-dialog,.nca-document-dialog) select :is(option,optgroup) {
+  background:#111114!important; color:#eee7eb!important; -webkit-text-fill-color:#eee7eb!important;
+}
+:is(.nca-app,.nca-workspace,.nca-dialog-app,.nca-input-dialog,.nca-document-dialog) select option:disabled {
+  color:#8f8490!important; -webkit-text-fill-color:#8f8490!important;
+}

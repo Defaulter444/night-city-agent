@@ -68,7 +68,10 @@ export function registerSocket() {
   });
   socket.register('conferenceDeliver', clientConferenceDeliver);
   socket.register('terminalPush', async function(id) {
+    if(!game.users.get(this.socketdata.userId)?.isGM)return;
     await refreshState();
+    const {terminalAllowed}=await import('./documents-model.mjs');
+    if(!terminalAllowed(readState().terminals?.[id],game.user,game.user.viewedScene))return;
     const { openWorkspace } = await import('./workspace-app.mjs');
     openWorkspace({ terminalId: id, tab: 'terminals' });
   });

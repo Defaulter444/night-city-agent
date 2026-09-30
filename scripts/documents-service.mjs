@@ -102,12 +102,15 @@ export async function runDocumentOperation(data, callerId) {
         old ? Object.assign(old, entry) : t.entries.push(entry); return entry.id;
       }
       case 'openEntry': {
+        const operator=terminalContext(user);
         const t = state.terminals?.[data.terminalId], entry = t?.entries.find(e => e.id === data.entryId);
         if (!D.terminalAllowed(t, user, user.viewedScene) || !entry || (!user.isGM && !entry.published)) throw Error('Нет доступа к файлу терминала');
         if (!entry.documentId && entry.tableUuid) {
           const table = await fromUuid(entry.tableUuid);
           if (!table?.roll) throw Error('Таблица больше недоступна');
           const draw = await table.roll();
+          const currentUser=game.users.get(user.id);
+          if(!sameTerminalContext(operator,currentUser)||!D.terminalAllowed(t,currentUser,currentUser?.viewedScene)||(!currentUser?.isGM&&!entry.published))throw Error('Персонаж или доступ к терминалу изменился. Откройте файл заново.');
           const body = (draw.results ?? []).map(r => String(r.text ?? '')).join('\n\n');
           entry.documentId = D.createDocument(state, { title: entry.title, body, source: t.title }).id;
         }
@@ -143,3 +146,4 @@ export async function deliverScheduled() {
     return changed;
   });
 }
+import {terminalContext,sameTerminalContext} from './terminal-context.mjs';

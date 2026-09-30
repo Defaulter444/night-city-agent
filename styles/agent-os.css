@@ -185,3 +185,5 @@
  .os-card {padding:12px;}.os-call-members .os-avatar{height:130px;}.os-transactions>div{flex-direction:column;gap:4px;}
 }
 @media(prefers-reduced-motion:reduce) {.nca-os * {animation:none!important;transition:none!important;}}
+/* Agent OS palette for dropdown items (see agent-modern.css: core option background is light). */
+.nca-os .os-page select :is(option,optgroup) {background:#10232b!important;color:#e5f3f6!important;-webkit-text-fill-color:#e5f3f6!important;}

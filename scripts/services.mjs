@@ -12,6 +12,7 @@
 import { MODULE_ID } from "./store.mjs";
 import { now, clockHTML, clockFlag, esc } from "./clock.mjs";
 import { adjustRaw, hasLedger } from "./wealth.mjs";
+import { membershipNameMatches } from "./service-membership.mjs";
 
 export const REO_FEE = 5;
 export const REO_FREE_ABOVE = 800;   // Правило службы из интеграции Holophone; источник в RED не подтверждён.
@@ -142,15 +143,11 @@ export function findMembership(actor, service) {
 }
 
 function findMembershipByName(actor, service) {
-  const svc = service === "trauma"
-    ? ["trauma team", "травма тим", "травма-тим"]
-    : ["r.e.o", "reo", "мясовоз", "р.е.о"];
-  const word = ["membership", "подписк", "членств", "полис"];
-
+  let exactNames="";
+  try{exactNames=game.settings.get(MODULE_ID,service==="trauma"?"traumaMembershipNames":"reoMembershipNames")??"";}catch{}
   const found = [...(actor?.items ?? [])].filter(item => {
     if (!carriedGear(item)) return false;
-    const name = norm(item.name);
-    return svc.some(s => name.includes(norm(s))) && word.some(w => name.includes(w));
+    return membershipNameMatches(item.name,service,exactNames)||membershipNameMatches(item.flags?.babele?.originalName,service,exactNames);
   }).sort((a, b) => (monthlyFromName(b.name) ?? marketValue(b)) - (monthlyFromName(a.name) ?? marketValue(a)));
 
   const item = found[0] ?? null;
