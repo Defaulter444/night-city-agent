@@ -1,7 +1,7 @@
 import { esc, now, deadlineRemaining, messageTime } from './clock.mjs';
 import { clockControls } from './clock-ui.mjs';
 import { contactsFor, contactLabel } from './model.mjs';
-import { OS_TABS, JOB_STATES, PLACE_TYPES, visibleRecord, visibleArticle, articleAudience, editableRecord, callsForViewer, cityMap } from './os-model.mjs';
+import { OS_TABS, JOB_STATES, PLACE_TYPES, visibleRecord, visibleArticle, visiblePlace, articleAudience, editableRecord, callsForViewer, cityMap } from './os-model.mjs';
 import { actorForDevice, hasLedger, isNPCDevice } from './wealth.mjs';
 import { protectedStorage } from './store.mjs';
 import { canReadDocument, canEditDocument, documentHidden, removedDocuments } from './documents-model.mjs';
@@ -24,7 +24,7 @@ export function OSContext(app,state) {
   const number=app.num, device=state.devices[number], os=state.os??{}, user=game.user;
   const page=app.osTab||'home', profile=os.profiles?.[number]??{}, map=cityMap(state);
   const npcPayer=user.isGM&&isNPCDevice(device),monitoring=user.isGM&&app.osCallScope!=='mine';
-  const available=key=>Object.values(os[key]??{}).filter(r=>(key==='articles'?visibleArticle:visibleRecord)(state,r,user));
+  const available=key=>Object.values(os[key]??{}).filter(r=>(key==='articles'?visibleArticle:key==='places'?visiblePlace:visibleRecord)(state,r,user));
   const jobs=available('jobs'),places=available('places'),articles=available('articles').sort(comparePublications);
   const contacts=number?contactsFor(state,number):[];
   const devices=Object.values(state.devices).filter(d=>user.isGM||d.owner===user.id);

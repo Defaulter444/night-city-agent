@@ -45,6 +45,8 @@ export function visibleArticle(state, record, user) {
   return Boolean(record && user && (user.isGM || (record.published &&
     (articleAudience(record) === 'all' || record.numbers?.some(n => state.devices[n]?.owner === user.id)))));
 }
+export const placeAudience = record => articleAudience(record);
+export const visiblePlace = (state,record,user) => visibleArticle(state,record,user);
 export function editableRecord(record,user) { return Boolean(record && user && (user.isGM || record.authorId === user.id)); }
 export function projectOS(state,user) {
   const os = state.os;
@@ -57,7 +59,7 @@ export function projectOS(state,user) {
     Object.keys(state.threads).filter(k => k.split('|').includes(n)).forEach(k => k.split('|').forEach(v => known.add(v)));
   }
   const out = { profiles:{}, contacts:{}, jobs:{}, places:{}, articles:{}, reminders:{}, calls:{}, fileMeta:{}, saved:{}, map:clone(os.map ?? {}) };
-  for (const key of ['jobs','places','articles']) for (const [rid,record] of Object.entries(os[key] ?? {})) if ((key === 'articles' ? visibleArticle : visibleRecord)(state,record,user)) out[key][rid] = clone(record);
+  for (const key of ['jobs','places','articles']) for (const [rid,record] of Object.entries(os[key] ?? {})) if ((key === 'articles' ? visibleArticle : key === 'places' ? visiblePlace : visibleRecord)(state,record,user)) out[key][rid] = clone(record);
   for (const [rid,call] of Object.entries(os.calls ?? {})) if (mine.some(n => call.members.includes(n))) { out.calls[rid] = clone(call); call.members.forEach(n=>known.add(n)); }
   for (const n of known) if (os.profiles?.[n]) out.profiles[n] = clone(os.profiles[n]);
   for (const n of mine) for (const key of ['contacts','reminders','fileMeta','saved']) if (os[key]?.[n]) out[key][n] = clone(os[key][n]);
@@ -93,7 +95,7 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
       const reward=Number(data.reward || 0); if (!Number.isFinite(reward) || reward<0) throw Error('Некорректная награда');
       const lines = String(data.steps ?? '').split('\n').map(s=>text(s,240)).filter(Boolean).slice(0,30);
       Object.assign(record,{ status:Object.hasOwn(JOB_STATES,data.status)?data.status:'planned', reward:Math.trunc(reward), due:text(data.due,100), fixer:text(data.fixer,100),
-        placeId: data.placeId && visibleRecord(state,os.places?.[data.placeId],user) ? data.placeId : '',
+        placeId: data.placeId && visiblePlace(state,os.places?.[data.placeId],user) ? data.placeId : '',
         steps:lines.map((label,index)=>({id:old?.steps?.[index]?.label===label?old.steps[index].id:id(), label, done:old?.steps?.[index]?.label===label?old.steps[index].done:false})) });
     }
     if (op === 'place') {
@@ -101,11 +103,13 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
       if (![x,y].every(v=>Number.isFinite(v)&&v>=0&&v<=100)) throw Error('Положение метки должно быть от 0 до 100%');
       Object.assign(record,{x,y,category:Object.hasOwn(PLACE_TYPES,data.category)?data.category:'place',district:text(data.district,100), contact:text(data.contact,16)});
     }
-    if (op === 'article') {
-      if (data.audience !== undefined && !['all','selected'].includes(data.audience)) throw Error('Выберите аудиторию публикации');
+    if (op === 'article' || op === 'place') {
+      if (data.audience !== undefined && !['all','selected'].includes(data.audience)) throw Error('Выберите аудиторию записи');
       record.audience = data.audience ?? (data.public ? 'all' : old && articleAudience(old) === 'selected' ? 'selected' : articleAudience(record));
       record.public = record.audience === 'all';
       if (record.audience === 'selected' && !record.numbers.length && record.published) throw Error('Выберите хотя бы один Агент для публикации');
+    }
+    if (op === 'article') {
       Object.assign(record,{ source:text(data.source,120), category:text(data.category,40) || 'Новости' });
       if (Object.hasOwn(data,'publicationDate') || Object.hasOwn(data,'publicationTime')) {
         record.publicationAt = publicationValue(data.publicationDate,data.publicationTime);
