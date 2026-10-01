@@ -8,6 +8,7 @@
  */
 import { MODULE_ID, readState, mutate, defaultRingtone, stateForUser, acceptProjection, protectedStorage, initializeStorage } from "./store.mjs";
 import { PrivateSocket } from './private-socket.mjs';
+import { ProjectionRefresh } from './projection-refresh.mjs';
 import { runDocumentOperation } from './documents-service.mjs';
 import { handleWealth, handleTransfer, handleNPCPayment } from "./wealth.mjs";
 import * as M from "./model.mjs";
@@ -24,6 +25,7 @@ import { canReadDocument } from './documents-model.mjs';
 export const UPDATE_HOOK = "nightCityAgentUpdate";
 
 let socket = null;
+let projectionRefresh = null;
 
 // socketlib replaces thrown remote errors with generic English text. Preserve
 // expected ledger failures so the player's window can explain the rejection.
@@ -35,7 +37,15 @@ async function ledgerResult(task) {
 export function registerSocket() {
   if (socket) return socket;
   socket = new PrivateSocket();
-  socket.register('snapshot', function() { return stateForUser(this.socketdata.userId); });
+  projectionRefresh = new ProjectionRefresh({
+    context:()=>!game.user.isGM && game.users.activeGM?JSON.stringify([game.world?.id,game.user.id,game.user.viewedScene,game.users.activeGM.id]):null,
+    fetch:()=>socket.executeAsGM('snapshot'),
+    accept:acceptProjection
+  });
+  socket.register('snapshot', async function() {
+    if(protectedStorage())await initializeStorage();
+    return stateForUser(this.socketdata.userId);
+  });
   socket.register('osOperation', async function(data) {
     const user = game.users.get(this.socketdata.userId);
     let recipients=[];
@@ -293,10 +303,11 @@ async function clientRefresh() {
   await refreshState();
   Hooks.callAll(UPDATE_HOOK);
 }
-export async function refreshState() {
+export function invalidateProjection() { projectionRefresh?.invalidate(); }
+export async function refreshState(options={}) {
   if (game.user.isGM) { if (protectedStorage()) await initializeStorage(); return; }
   if (!socket || !game.users.activeGM) return;
-  acceptProjection(await socket.executeAsGM('snapshot'));
+  await projectionRefresh.refresh(options);
 }
 export async function documentOperation(op, data = {}) {
   requireGM();

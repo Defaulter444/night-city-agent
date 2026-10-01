@@ -57,22 +57,31 @@ function legacyCopy(text) {
 /* --------------------------------------------------------------- действия */
 
 async function onPickDevice(event, target) {
-  await this.saveDraft();
-  clearOpenThread(this.num);
-  this.num = target.dataset.num;
-  this.other = null;
-  this.render();
+  if(this.switchingDevice)return;
+  this.switchingDevice=true;
+  try {
+    await this.saveDraft();
+    clearOpenThread(this.num);
+    this.num=target.dataset.num;
+    this.other=null;
+    this.osShowContacts=false;
+    this._osFocus='.nca-device-select';
+    await this.render();
+  } finally {this.switchingDevice=false;}
 }
 
 async function onPickContact(event, target) {
   await this.saveDraft();
+  this.osShowContacts = false;
+
   this.other = target.dataset.num;
   if (this.num && this.other) {
     // Прочитано — значит, звонок смолкает.
     await stopRing(ringKey(this.num, this.other));
     await markRead(this.num, this.other).catch(() => {});
   }
-  this.render();
+  await this.render();
+  this.element?.querySelector('.nca-input')?.focus();
 }
 
 /** Заглушить звонок, не открывая переписку. */
@@ -476,12 +485,12 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static PARTS = {
     body: {
       template: "modules/night-city-agent/templates/agent-modern.hbs",
-      scrollable: [".nca-contacts", ".nca-thread", ".os-page"]
+      scrollable: [".nca-contacts", ".nca-thread", ".os-page", ".os-place-list", ".os-file-list"]
     }
   };
 
   async _prepareContext() {
-    try { await refreshState(); } catch (error) { console.warn('Агент:',error.message); }
+    try { await refreshState({cached:true}); } catch (error) { console.warn('Агент:',error.message); }
     if (storageLocked()) return { locked: true, isGM: true };
     const state = readState();
     const isGM = game.user.isGM;
@@ -602,26 +611,19 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (ev.key === "Enter") { ev.preventDefault(); onSaveName.call(this); }
     });
 
-    // Полоса устройств прокручивается обычным колесом, а не только
-    // Shift+колесом: полоска прокрутки тут в шесть пикселей, и целиться в неё
-    // мышью при двух десятках аппаратов — мучение.
-    const devbar = this.element.querySelector(".nca-devbar");
-    devbar?.addEventListener("wheel", ev => {
-      // Вертикального хода у полосы нет, поэтому вертикальное колесо здесь
-      // пропало бы впустую — обращаем его в горизонтальное. Если игрок и так
-      // крутит вбок (трекпад, наклон колеса), не мешаем.
-      if (ev.deltaY === 0 || ev.shiftKey) return;
-      if (devbar.scrollWidth <= devbar.clientWidth) return;
-      ev.preventDefault();
-      devbar.scrollLeft += ev.deltaY;
-    }, { passive: false });
-
-    // Выбранный аппарат виден, даже если он далеко в конце полосы: иначе
-    // после переключения непонятно, на каком номере ты сейчас.
-    devbar?.querySelector(".nca-dev.on")?.scrollIntoView({
-      block: "nearest",
-      inline: "nearest"
+    this.element.querySelector('.nca-device-select')?.addEventListener('change',async event=>{
+      const picker=event.currentTarget;picker.disabled=true;
+      try {await onPickDevice.call(this,event,{dataset:{num:picker.value}});}
+      catch(error){picker.value=this.num;ui.notifications.error(error.message);}
+      finally {if(picker.isConnected)picker.disabled=false;}
     });
+    if(this._osMenuFocus){
+      const {op,id}=this._osMenuFocus;
+      const button=[...this.element.querySelectorAll('.os-more [data-os]')].find(el=>el.dataset.os===op&&el.dataset.id===id);
+      (button?.closest('.os-more')?.querySelector('summary')??this.element.querySelector('.os-page-heading button'))?.focus();
+      this._osMenuFocus=null;
+    }
+    if(this._osFocus){this.element.querySelector(this._osFocus)?.focus();this._osFocus=null;}
 
     // Переписка всегда прокручена к свежему сообщению.
     const thread = this.element.querySelector(".nca-thread");
@@ -635,13 +637,20 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Сообщаем доставке, на какую переписку игрок сейчас смотрит:
     // пришедшее в неё сообщение не звонит и сразу считается прочитанным.
+    this.osPresenceObserver?.disconnect();
+    this.osPresenceObserver=new ResizeObserver(()=>this.syncThreadPresence());
+    const os=this.element.querySelector('.nca-os');if(os)this.osPresenceObserver.observe(os);
+    this.syncThreadPresence();
+  }
+
+  syncThreadPresence() {
     clearOpenThread(this.num);
-    if ((!this.osTab || this.osTab === 'messages') && this.num && this.other) {
-      setOpenThread(this.num, this.other);
-      if (!this._markingRead && M.unreadCount(readState(),this.num,this.other)>0 && game.users.activeGM) {
-        this._markingRead = true;
-        markRead(this.num,this.other).catch(error=>console.warn('Агент: отметка прочтения',error)).finally(()=>{this._markingRead=false;});
-      }
+    const thread=this.element?.querySelector('.nca-thread');
+    if(this.closing||(this.osTab||'home')!=='messages'||!this.num||!this.other||!thread?.clientHeight||!thread.clientWidth)return;
+    setOpenThread(this.num,this.other);
+    if(!this._markingRead&&M.unreadCount(readState(),this.num,this.other)>0&&game.users.activeGM){
+      this._markingRead=true;
+      markRead(this.num,this.other).catch(error=>console.warn('Агент: отметка прочтения',error)).finally(()=>{this._markingRead=false;});
     }
   }
 
@@ -654,9 +663,10 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _preClose(options) {
-    clearInterval(this.osTimer);
     this.closing = true;
     try { await this.saveDraft(); } catch (e) { this.closing = false; ui.notifications.error(`Черновик не сохранён: ${e.message}`); throw e; }
+    clearInterval(this.osTimer);
+    this.osPresenceObserver?.disconnect();
     Hooks.off(UPDATE_HOOK, this._onUpdate);
     Hooks.off(RING_HOOK, this._onRing);
     clearOpenThread(this.num);
@@ -680,7 +690,7 @@ export function openAgent(opts = {}) {
   const key = opts.num ?? "self";
   const existing = instances.get(key);
   if (existing?.rendered) {
-    if (opts.other) { existing.other = opts.other; existing.osTab='messages'; }
+    if (opts.other) { existing.other = opts.other; existing.osTab='messages'; existing.osShowContacts=false; }
     if (opts.tab) existing.osTab=opts.tab;
     if (opts.callScope) { existing.osCallScope=opts.callScope;existing.osCallId=null;existing.osCallFilter=''; }
     existing.bringToFront();

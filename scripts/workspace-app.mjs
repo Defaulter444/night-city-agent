@@ -53,7 +53,7 @@ export class AgentWorkspace extends HandlebarsApplicationMixin(ApplicationV2) {
     this.onUpdate = () => { if (this.rendered && !this.closing) this.render(); };
   }
   async _prepareContext() {
-    await refreshState();
+    await refreshState({cached:true});
     const locked = storageLocked();
     let state = locked ? { devices: {}, documents: {}, terminals: {} } : readState();
     const all = state;

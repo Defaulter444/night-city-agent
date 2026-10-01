@@ -1,6 +1,10 @@
 /** AES-GCM storage. The recovery key never enters a Foundry setting or socket. */
 const bytesTo64 = bytes => btoa(String.fromCharCode(...bytes));
-const from64 = value => Uint8Array.from(atob(value), c => c.charCodeAt(0));
+const from64 = value => {
+  const text = atob(value), bytes = new Uint8Array(text.length);
+  for (let index = 0; index < text.length; index++) bytes[index] = text.charCodeAt(index);
+  return bytes;
+};
 export const newRecoveryKey = () => bytesTo64(crypto.getRandomValues(new Uint8Array(32)));
 async function keyFor(secret) {
   if (!crypto.subtle) throw Error('Для защиты данных откройте Foundry мастером через localhost или HTTPS.');

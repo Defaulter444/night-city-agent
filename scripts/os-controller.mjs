@@ -44,6 +44,7 @@ async function sendTextDialog(state,number,title,text) {
 }
 export async function performOS(app,event,target) {
   const op=target.dataset.os;
+  if(target.closest?.('.os-more'))app._osMenuFocus={op,id:target.dataset.id};
   if(app.osBusy)return;
   app.osBusy=true;
   try {
@@ -53,7 +54,8 @@ export async function performOS(app,event,target) {
     const state=readState(),number=app.num,os=state.os??{},user=game.user;
     const mutate=(action,data={})=>osOperation(action,{number,...data});
     if(op==='nav') { if(!OS_TABS.some(([key])=>key===target.dataset.tab))return; app.osTab=target.dataset.tab;clearOpenThread(number);return; }
-    if(op==='message') {app.other=target.dataset.num;app.osTab='messages';await stopRing(ringKey(number,app.other));await markRead(number,app.other);return;}
+    if(op==='chatList'){app.osShowContacts=true;app._osFocus='.nca-contact.on';clearOpenThread(number);return;}
+    if(op==='message') {app.osShowContacts=false;app._osFocus='.nca-input';app.other=target.dataset.num;app.osTab='messages';await stopRing(ringKey(number,app.other));await markRead(number,app.other);return;}
     if(op==='contactFilter'){app.osContactFilter=target.dataset.filter;return;}
     if(op==='jobFilter'){app.osJobArchive=target.dataset.filter==='archive';return;}
     if(op==='newsFilter'){app.osSavedOnly=!app.osSavedOnly;return;}
@@ -106,19 +108,19 @@ export async function performOS(app,event,target) {
     }
     if(['job','place','article'].includes(op)) {
       const collection={job:'jobs',place:'places',article:'articles'}[op],old=os[collection]?.[target.dataset.id]??{};
-      let form=field('title','Название',old.title,'text','required maxlength="160"')+area('body','Описание',old.body);
+      let form=field('title','Название',old.title,'text','required maxlength="160"')+(op==='article'?audience(state,old,op):'')+area('body','Описание',old.body);
       if(op==='job') form+=select('status','Состояние',JOB_STATES,old.status||'planned')+field('reward','Награда, эдди',old.reward||0,'number','min="0" step="1"')+field('fixer','Заказчик',old.fixer)+field('due','Игровой срок',old.due,'text','placeholder="Сегодня, 23:00"')+select('placeId','Место',{'':'Без привязки',...Object.fromEntries(Object.values(os.places??{}).map(p=>[p.id,p.title]))},old.placeId)+area('steps','Этапы — по одному на строку',(old.steps??[]).map(s=>s.label).join('\n'));
       if(op==='place') form+=select('category','Категория',PLACE_TYPES,old.category||'place')+field('district','Район',old.district)+field('contact','Номер контакта',old.contact)+'<details class="os-map-coordinates"><summary>Точные координаты</summary>'+field('x','Положение по горизонтали, %',old.x??target.dataset.mapX??50,'number','min="0" max="100" step="0.01"')+field('y','Положение по вертикали, %',old.y??target.dataset.mapY??50,'number','min="0" max="100" step="0.01"')+'</details>';
       if(op==='article') {
         if(!user.isGM)throw Error('Доступно только мастеру');
         const publication=publicationFormValues(old,now());
-        form+=field('source','Источник',old.source)+field('category','Раздел',old.category||'Новости')+
+        form+='<div class="os-form-grid">'+field('source','Источник',old.source)+field('category','Раздел',old.category||'Новости')+'</div>'+
           '<fieldset class="os-publication-time"><legend>Дата публикации</legend><div class="os-publication-fields">'+
           field('publicationDate','Дата публикации',publication.date,'date','required min="0001-01-01" max="9999-12-31"')+
           field('publicationTime','Время публикации',publication.time,'time','required step="60"')+
           '</div><p class="hint">Игровая дата и время в ленте. Запись появится у игроков после включения «Видно игрокам», независимо от указанной даты.</p></fieldset>';
       }
-      form+=imageFields(old.image||'')+audience(state,old,op);
+      form+='<details class="os-form-image"><summary>Изображение'+(old.image?' · добавлено':'')+'</summary>'+imageFields(old.image||'')+'</details>'+(op==='article'?'':audience(state,old,op));
       const rid=await inputDialog({job:'Задание',place:'Место на карте',article:'Публикация Data Pool'}[op],form,async fd=>mutate(op,{...Object.fromEntries([...fd.entries()].filter(([k])=>!k.startsWith('aud-')&&k!=='upload')),id:old.id,...audienceData(fd,state),image:await imageValue(fd,old.image)}));
       if(rid&&op==='place'){app.osPlaceId=rid;app.osMapCategory='';(app.osSearch??={}).map='';}return;
     }
@@ -209,12 +211,32 @@ export async function performOS(app,event,target) {
       const actor=actorForDevice(state.devices[number]);if(!actor||( !user.isGM&&!actor.isOwner))throw Error('Лист недоступен');
       if(op==='actor')actor.sheet.render(true);else actor.items.get(target.dataset.id)?.sheet.render(true);return;
     }
-  } finally {app.osBusy=false;if(!app.closing)app.render();}
+  } finally {
+    try {
+      if(!app.closing){
+        await app.render();
+        if(op==='message')app.element?.querySelector('.nca-input')?.focus();
+        if(op==='chatList')app.element?.querySelector('.nca-contact.on')?.focus();
+      }
+    } finally {app.osBusy=false;}
+  }
 }
 export function OSRender(app) {
   app.osMapController?.destroy();app.osMapController=null;
   if(app.osTab!=='map')app.osMapMode=null;
   const root=app.element;if(!root)return;
+  app.osOpen??=new Set();
+  root.querySelectorAll('details[data-os-panel]').forEach(el=>{
+    const key=`${app.num}|${el.dataset.osPanel}`;
+    el.addEventListener('toggle',()=>{if(el.isConnected){if(el.open)app.osOpen.add(key);else app.osOpen.delete(key);}});
+  });
+  if(app.osMenuKeyHandler)root.removeEventListener('keydown',app.osMenuKeyHandler);
+  app.osMenuKeyHandler=e=>{
+    if(e.key!=='Escape')return;
+    const detail=e.target.closest('details.os-more[open], details.nca-menu[open]');if(!detail)return;
+    e.preventDefault();e.stopPropagation();detail.open=false;detail.querySelector('summary')?.focus();
+  };
+  root.addEventListener('keydown',app.osMenuKeyHandler);
   const pageKey=`${app.num}|${app.osTab}`;
   if(app.osRenderedPage!==pageKey){const page=root.querySelector('.os-page');if(page)page.scrollTop=0;app.osRenderedPage=pageKey;}
   const input=root.querySelector('.os-search-input');

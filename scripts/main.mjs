@@ -2,7 +2,7 @@
  * Точка входа модуля «Агент».
  */
 import { MODULE_ID, registerSettings, readState, initializeStorage, storageLocked } from "./store.mjs";
-import { registerSocket, refreshState, broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
+import { registerSocket, refreshState, invalidateProjection, broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
 import { openAgent, closeAllAgents } from "./app-agent.mjs";
 import { openGMPanel } from "./app-gm.mjs";
 import { openHelp } from "./help.mjs";
@@ -10,6 +10,7 @@ import { openWorkspace } from './workspace-app.mjs';
 import { openConferences } from './conferences-app.mjs';
 import { deliverScheduled } from './documents-service.mjs';
 import { terminalAllowed } from './documents-model.mjs';
+import { requiresAccessRefresh, requiresUserAccessRefresh } from './projection-refresh.mjs';
 import * as M from "./model.mjs";
 import * as Wealth from "./wealth.mjs";
 import * as Services from "./services.mjs";
@@ -32,6 +33,20 @@ Hooks.once("setup", () => {
 });
 
 Hooks.once("ready", async () => {
+  // Access can change without an Agent revision (scene, ownership, memory chip).
+  const refreshAccess = () => {
+    invalidateProjection();
+    refreshState({cached:true}).then(()=>Hooks.callAll(UPDATE_HOOK)).catch(()=>{});
+  };
+  for(const event of ['canvasReady','userConnected','createActor','deleteActor','createItem','deleteItem']) Hooks.on(event,refreshAccess);
+  Hooks.on('updateUser',(user,changes)=>{
+    if(requiresUserAccessRefresh(user.id,changes,game.user.id))refreshAccess();
+    else Hooks.callAll(UPDATE_HOOK);
+  });
+  for(const type of ['Actor','Item'])Hooks.on('update'+type,(_document,changes)=>{
+    if(requiresAccessRefresh(type,changes))refreshAccess();
+    else Hooks.callAll(UPDATE_HOOK);
+  });
   try { await initializeStorage(); await refreshState(); } catch (e) { ui.notifications.warn(`Агент: ${e.message}`); }
   // Кнопка «Зачислить» в карточке перевода живёт в чате, а не в окне Агента,
   // поэтому обработчик вешается один раз на весь сеанс.
@@ -65,10 +80,6 @@ Hooks.once("ready", async () => {
   Hooks.on('updateWorldTime', tick);
   Hooks.on('simple-calendar-date-time-change',checkOSReminders);
   Hooks.on('simple-calendar-date-time-change',tick);
-  Hooks.on('canvasReady', () => refreshState().then(() => Hooks.callAll(UPDATE_HOOK)).catch(() => {}));
-  Hooks.on('updateUser', () => refreshState().then(() => Hooks.callAll(UPDATE_HOOK)).catch(() => {}));
-  Hooks.on('updateActor', () => refreshState().then(() => Hooks.callAll(UPDATE_HOOK)).catch(() => {}));
-  Hooks.on('updateItem', () => refreshState().then(() => Hooks.callAll(UPDATE_HOOK)).catch(() => {}));
 
 });
 
@@ -78,7 +89,10 @@ Hooks.once("ready", async () => {
  * когда состояние на клиенте уже точно свежее.
  */
 Hooks.on("updateSetting", setting => {
-  if ([`${MODULE_ID}.state`, `${MODULE_ID}.vault`].includes(setting?.key)) Hooks.callAll(UPDATE_HOOK);
+  if ([`${MODULE_ID}.state`, `${MODULE_ID}.vault`].includes(setting?.key)) {
+    invalidateProjection();
+    refreshState({cached:true}).then(()=>Hooks.callAll(UPDATE_HOOK)).catch(()=>Hooks.callAll(UPDATE_HOOK));
+  }
 });
 
 /** Кнопки в панели инструментов токенов: она видна и игрокам, и мастеру. */

@@ -22,6 +22,25 @@ test('terminal visibility requires both user and current scene; unpublished file
  const s=fixture(),doc=D.createDocument(s,{title:'Evidence',body:'Content'});s.terminals={t:{id:'t',sceneId:'scene',users:['p'],entries:[{id:'e',documentId:doc.id,published:false}]}};
  assert.equal(D.canReadDocument(s,doc,p,'scene'),false);s.terminals.t.entries[0].published=true;assert.equal(D.canReadDocument(s,doc,p,'scene'),true);assert.equal(D.canReadDocument(s,doc,p,'other'),false);assert.equal(D.canReadDocument(s,doc,q,'scene'),false);
 });
+test('permission projections do not mutate frozen source data or share mutable fields',()=>{
+ const s=fixture(),image={name:'Evidence',src:'data:image/png;base64,aGVsbG8='};
+ const own=D.createDocument(s,{title:'Owned',holders:['1111-1111'],images:[image]}),readable=D.createDocument(s,{title:'Reader',readers:['q'],images:[image]});
+ const terminal=D.createDocument(s,{title:'Terminal',images:[image]}),group=D.createDocument(s,{title:'Group',images:[image]});
+ s.terminals={t:{id:'t',sceneId:'scene',users:['p'],entries:[{id:'e',documentId:terminal.id,published:true}]}};
+ s.conferences={c:{id:'c',members:['1111-1111','2222-2222'],messages:[{f:'1111-1111',documentId:group.id,x:'File',o:'SECRET ORIGINAL'}],read:{},drafts:{'1111-1111':'Private'}}};
+ s.os={profiles:{'1111-1111':{name:'Player'}},articles:{hidden:{id:'hidden',published:false,body:'SECRET ARTICLE'}},contacts:{'1111-1111':{'2222-2222':{note:'Private note'}}}};
+ s.documentHidden={p:{[own.id]:10}};const deleted=D.createDocument(s,{title:'Removed',authorId:'q',images:[image]});D.deleteDocument(s,deleted.id,q);
+ const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
+ const before=structuredClone(s);freeze(s);
+ for(const user of [gm,p,q,{id:'stranger'}])for(const scene of ['scene','elsewhere']){
+   const expected=D.projectState(structuredClone(s),user,scene),actual=D.projectState(s,user,scene);assert.deepEqual(actual,expected);
+   assert.deepEqual(s,before);
+   const doc=actual.documents[own.id]??actual.documents[readable.id];if(doc?.images)doc.images[0].name='Local edit';
+   if(actual.devices['1111-1111']?.book)actual.devices['1111-1111'].book['2222-2222']='Local edit';
+   if(actual.conferences?.c)actual.conferences.c.messages[0].x='Local edit';
+   assert.deepEqual(s,before);
+ }
+});
 test('document transfer grants recipient access without changing legacy messages',()=>{
  const s=fixture(),before=structuredClone(s),doc=D.createDocument(s,{title:'File',body:'Text',holders:['1111-1111']});
  assert.throws(()=>D.attachDocument(s,{from:'1111-1111',to:'2222-2222',documentId:doc.id},q));D.attachDocument(s,{from:'1111-1111',to:'2222-2222',documentId:doc.id},p);assert.equal(D.canReadDocument(s,doc,q),true);assert.deepEqual(s.threads[M.threadKey('1111-1111','2222-2222')][0],before.threads[M.threadKey('1111-1111','2222-2222')][0]);

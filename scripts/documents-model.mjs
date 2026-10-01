@@ -70,8 +70,9 @@ export function canReadDocument(state, doc, user, sceneId = '') {
     t.entries?.some(entry => entry.documentId === doc.id && entry.published));
 }
 export function projectState(state, user, sceneId = '') {
-  state = normalize(clone(state));
-  if (user?.isGM) return state;
+  if (user?.isGM) return normalize(clone(state));
+  // Copy only the permitted result; hidden campaign images need no temporary clone.
+  state = normalize(state);
   const mine = new Set(Object.values(state.devices).filter(d => d.owner === user?.id).map(d => d.num));
   const out = { v: 1, devices: {}, threads: {}, read: {}, documents: {}, terminals: {}, organizer: {}, revision: state.revision ?? 0 };
   if (state.conferences) out.conferences = conferenceProjection(state, user);

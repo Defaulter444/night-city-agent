@@ -90,3 +90,17 @@ test('bundled 2045 map is the default, preserves custom maps, and does not mutat
  applyOSOperation(state,{op:'map',number:npc,title:'Найт-Сити 2045',image:DEFAULT_CITY_MAP},gm);
  assert.equal(cityMap(state).image,DEFAULT_CITY_MAP);assert.equal(state.os.places.safe.title,'Старое место');
 });
+
+test('home count includes only readable, present files and excludes personal removals',async()=>{
+ reset();game.user=p;
+ const {createDocument}=await import('../scripts/documents-model.mjs');
+ const visible=createDocument(state,{title:'Доступная улика',body:'x',holders:[pn],authorId:gm.id});
+ const hidden=createDocument(state,{title:'Убрана из списка',body:'x',holders:[pn],authorId:gm.id});
+ createDocument(state,{title:'Секрет Мастера',body:'private',authorId:gm.id});
+ const deleted=createDocument(state,{title:'Удалена для всех',body:'x',holders:[pn],authorId:gm.id});deleted.removal='global';
+ state.documentHidden={[p.id]:{[hidden.id]:1}};
+ const html=OSContext({num:pn,osTab:'home'},state).osContent;
+ assert.match(html,/data-tab="files">[\s\S]*?<strong>1<\/strong>/);
+ const files=OSContext({num:pn,osTab:'files'},state).osContent;
+ assert.ok(files.includes(visible.title));assert.ok(!files.includes(hidden.title));assert.ok(!files.includes('Секрет Мастера'));assert.ok(!files.includes(deleted.title));
+});

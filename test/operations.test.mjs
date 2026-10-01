@@ -9,6 +9,7 @@ const get = (o, p) => p.split(".").reduce((v, k) => v?.[k], o);
 const gm = { id: "gm", isGM: true }, player = { id: "player", isGM: false };
 const users = [gm, player]; users.get = id => users.find(u => u.id === id); users.players = [player]; users.activeGM = gm;
 let cached, failRoll, failMessage, nextId = 0, messages, formulas, notifications, upload;
+globalThis.ResizeObserver=class {observe(){} disconnect(){}};
 globalThis.foundry = {
   utils: { deepClone: structuredClone, getProperty: get, randomID: () => `receipt${++nextId}` },
   applications: {
@@ -137,7 +138,7 @@ await test("a queued render cannot restore sent text or erase newer typing", asy
   addDevice(cached, { num: "1111-1111" }); addDevice(cached, { num: "2222-2222" });
   const app = new AgentApp({ num: "1111-1111", other: "2222-2222" });
   const field = { value: "old render snapshot", addEventListener() {} };
-  app.element = { querySelector: selector => selector === '.nca-input' ? field : null, querySelectorAll: () => [] };
+  app.element = { addEventListener(){}, removeEventListener(){}, querySelector: selector => selector === '.nca-input' ? field : null, querySelectorAll: () => [] };
   for (const current of ["", "new text typed while sending"]) {
     field.value = "old render snapshot";
     app.drafts["1111-1111|2222-2222"] = current;
@@ -149,6 +150,36 @@ await test("a queued render cannot restore sent text or erase newer typing", asy
   field.value = "saved draft on first opening";
   app._onRender({}, {});
   assert.equal(app.drafts["1111-1111|2222-2222"], field.value);
+});
+await test('hidden conversation keeps its draft and does not claim visible presence', async()=>{
+  const {isThreadOpen,reset:resetPresence}=await import('../scripts/presence.mjs');
+  const {performOS}=await import('../scripts/os-controller.mjs');
+  addDevice(cached,{num:'1111-1111'});addDevice(cached,{num:'2222-2222'});
+  const app=new AgentApp({num:'1111-1111',other:'2222-2222',tab:'messages'});
+  const thread={clientWidth:400,clientHeight:300};
+  app.element={querySelector:selector=>selector==='.nca-thread'?thread:null};
+  app.drafts['1111-1111|2222-2222']='Незавершённая улика';
+  app.saveDraft=async()=>{};app.render=()=>{};
+  resetPresence();app.syncThreadPresence();assert.ok(isThreadOpen(app.num,app.other));
+  await performOS(app,null,{dataset:{os:'chatList'}});
+  assert.equal(isThreadOpen(app.num,app.other),false);
+  assert.equal(app.other,'2222-2222');assert.equal(app.osShowContacts,true);
+  assert.equal(app.drafts['1111-1111|2222-2222'],'Незавершённая улика');
+  thread.clientWidth=0;app.syncThreadPresence();assert.equal(isThreadOpen(app.num,app.other),false);
+  thread.clientWidth=400;app.syncThreadPresence();assert.ok(isThreadOpen(app.num,app.other));
+  app.closing=true;app.syncThreadPresence();assert.equal(isThreadOpen(app.num,app.other),false);
+});
+await test('device switching serializes draft save and keeps the previous device on failure', async()=>{
+  let release;const saving=new Promise(resolve=>release=resolve),rendered=[];
+  const app={num:'1111-1111',other:'2222-2222',saveDraft:()=>saving,render(){rendered.push(this.num);}};
+  const pick=AgentApp.DEFAULT_OPTIONS.actions.pickDevice;
+  const first=pick.call(app,null,{dataset:{num:'3333-3333'}});
+  await pick.call(app,null,{dataset:{num:'4444-4444'}});
+  assert.equal(app.num,'1111-1111');release();await first;
+  assert.equal(app.num,'3333-3333');assert.deepEqual(rendered,['3333-3333']);assert.equal(app._osFocus,'.nca-device-select');
+  app.saveDraft=async()=>{throw Error('save failed');};
+  await assert.rejects(pick.call(app,null,{dataset:{num:'4444-4444'}}),/save failed/);
+  assert.equal(app.num,'3333-3333');assert.equal(app.switchingDevice,false);
 });
 await test('new contact normalizes its number and persists even without a display name', async () => {
   addDevice(cached,{num:'1111-1111',owner:'player'});addDevice(cached,{num:'2222-2222'});
@@ -170,5 +201,19 @@ await test('player-to-NPC file delivery uses authenticated notifications after d
   assert.ok(delivered.some(d=>d.name==='deliver'&&d.ids.includes('gm')&&d.payload.senderId==='player'));
   await handlers.get('deliver')({from:'1111-1111',to:'2222-2222',senderId:'player'});
   assert.ok(notifications.some(n=>n.text.includes('Роуг')&&n.text.includes('1111-1111')));
+});
+await test('OS navigation stays busy until render finishes and then restores conversation focus', async()=>{
+  const {performOS}=await import('../scripts/os-controller.mjs');
+  let release;const rendering=new Promise(resolve=>release=resolve);let focused=false;
+  const app={num:'1111-1111',saveDraft:async()=>{},render:()=>rendering,
+    element:{querySelector:selector=>selector==='.nca-contact.on'?{focus(){focused=true;}}:null}};
+  const pending=performOS(app,null,{dataset:{os:'chatList'}});
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(app.osBusy,true);assert.equal(focused,false);
+  release();await pending;
+  assert.equal(app.osBusy,false);assert.equal(focused,true);
+  app.render=async()=>{throw Error('render failed');};
+  await assert.rejects(performOS(app,null,{dataset:{os:'chatList'}}),/render failed/);
+  assert.equal(app.osBusy,false);
 });
 console.log(JSON.stringify(results, null, 2));

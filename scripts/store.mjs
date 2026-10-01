@@ -11,24 +11,67 @@ import { stampNewEntries } from './clock.mjs';
 export const MODULE_ID = "night-city-agent";
 const KEY = "state";
 let privateState = null, privateBackup = null, secret = null, playerState = blankState();
+let vaultScope = '', vaultGeneration = 0, loadedVault = null, loadingVault = null, failedVault = null, pendingVaultWrite = null;
 const keyName = () => `nca-recovery:${game.world.id}:${game.user.id}`;
+const vaultContext = () => `${game.world.id}|${game.user.id}`;
+const sameEnvelope = (a,b) => Boolean(a && b && a.format === b.format && a.iv === b.iv && a.data === b.data);
+const envelopeKey = envelope => ({format:envelope.format,iv:envelope.iv,data:envelope.data});
+function ensureVaultContext() {
+  const scope = vaultContext();
+  if (vaultScope !== scope) {
+    vaultScope = scope; vaultGeneration++;
+    privateState = null; privateBackup = null; secret = null;
+    loadedVault = null; loadingVault = null; failedVault = null; pendingVaultWrite = null;
+  }
+  return scope;
+}
+function rememberVault(envelope) {
+  loadedVault = {scope:vaultScope,generation:vaultGeneration,secret,envelope:envelopeKey(envelope)};
+  failedVault = null;
+}
 export const protectedStorage = () => Boolean(game.settings.get(MODULE_ID, 'vault')?.format);
-export const storageLocked = () => protectedStorage() && game.user.isGM && !secret;
+export const storageLocked = () => protectedStorage() && game.user.isGM && !(secret && privateState);
 export async function initializeStorage() {
   if (!game.user.isGM) return;
-  const envelope = game.settings.get(MODULE_ID, 'vault');
-  if (!envelope?.format) return;
-  secret ??= globalThis.localStorage?.getItem(keyName());
-  if (!secret) return;
-  try {
-    const payload = await unseal(envelope, secret);
-    if (!privateState || (payload.state?.revision ?? 0) >= (privateState.revision ?? 0)) {
-      privateState = normalize(payload.state); privateBackup = payload.backup;
+  while (game.user.isGM) {
+    const scope = ensureVaultContext(), envelope = game.settings.get(MODULE_ID, 'vault');
+    if (!envelope?.format) return;
+    const key = secret ?? globalThis.localStorage?.getItem(keyName());
+    if (!key) return;
+    if (failedVault?.scope === scope && failedVault.key === key && sameEnvelope(failedVault.envelope,envelope)) throw failedVault.error;
+    secret = key;
+    const generation = vaultGeneration;
+    if (loadedVault?.generation === generation && loadedVault.secret === key && privateState && sameEnvelope(loadedVault.envelope,envelope)) return;
+    if (pendingVaultWrite?.generation === generation && pendingVaultWrite.secret === key && sameEnvelope(pendingVaultWrite.envelope,envelope)) {
+      await pendingVaultWrite.promise.catch(()=>{});
+      continue;
     }
-  } catch (error) { secret = null; privateState = null; throw Error('Не удалось открыть данные Агента. Импортируйте ключ восстановления.'); }
+    let task = loadingVault;
+    if (!task || task.generation !== generation || task.secret !== key || !sameEnvelope(task.envelope,envelope)) {
+      task = {scope,generation,secret:key,envelope:envelopeKey(envelope),promise:unseal(envelope,key)};
+      loadingVault = task;
+    }
+    const current = () => vaultContext() === scope && vaultGeneration === generation && secret === key && sameEnvelope(task.envelope,game.settings.get(MODULE_ID,'vault'));
+    try {
+      const payload = await task.promise;
+      if (!current()) continue;
+      privateState = normalize(payload.state); privateBackup = payload.backup;
+      rememberVault(envelope);
+      return;
+    } catch (cause) {
+      if (!current()) continue;
+      const error = Error('Не удалось открыть данные Агента. Импортируйте ключ восстановления.',{cause});
+      failedVault = {scope,key,envelope:envelopeKey(envelope),error};
+      secret = null; privateState = null; privateBackup = null; loadedVault = null;
+      throw error;
+    } finally {
+      if (loadingVault === task) loadingVault = null;
+    }
+  }
 }
 export function acceptProjection(state) {
-  if ((state?.revision ?? 0) >= (playerState.revision ?? 0)) playerState = normalize(state);
+  // ProjectionRefresh rejects obsolete requests before delivering this snapshot.
+  playerState = normalize(state);
 }
 export function stateForUser(userId) {
   const user = game.users.get(userId);
@@ -37,9 +80,13 @@ export function stateForUser(userId) {
 }
 export async function importRecovery(bundle) {
   if (!game.user.isGM || bundle?.format !== 'nca-recovery-1' || bundle.worldId !== game.world.id) throw Error('Это не ключ текущего мира');
-  const payload = await unseal(game.settings.get(MODULE_ID, 'vault'), bundle.key);
+  const scope = ensureVaultContext(), envelope = game.settings.get(MODULE_ID, 'vault');
+  const payload = await unseal(envelope, bundle.key);
+  if (vaultContext() !== scope || !sameEnvelope(envelope,game.settings.get(MODULE_ID,'vault'))) throw Error('Данные Агента изменились. Повторите импорт ключа.');
   globalThis.localStorage.setItem(keyName(), bundle.key);
+  vaultGeneration++;
   secret = bundle.key; privateState = normalize(payload.state); privateBackup = payload.backup;
+  rememberVault(envelope);
   return readState();
 }
 export function recoveryBundle() {
@@ -50,6 +97,7 @@ export function enableProtection(saveBackup) {
   const task = async () => {
   if (!game.user.isGM || protectedStorage()) throw Error('Защита уже включена или недостаточно прав');
   requirePrimaryGM();
+  ensureVaultContext();
   const before = structuredClone(readState());
   const nextSecret = newRecoveryKey();
   const payload = { state: before, backup: before };
@@ -60,7 +108,9 @@ export function enableProtection(saveBackup) {
   globalThis.localStorage.setItem(keyName(), nextSecret);
   await game.settings.set(MODULE_ID, 'vault', envelope);
   assertLegacyPreserved(before, (await unseal(game.settings.get(MODULE_ID, 'vault'), nextSecret)).state);
+  vaultGeneration++;
   secret = nextSecret; privateState = before; privateBackup = before;
+  rememberVault(envelope);
   await game.settings.set(MODULE_ID, KEY, blankState());
   return assertLegacyPreserved(before, privateState);
   };
@@ -152,8 +202,17 @@ export async function writeState(state) {
   if (protectedStorage()) {
     if (!secret) throw Error('Хранилище закрыто');
     const envelope = await seal({ state, backup: privateBackup }, secret);
-    await game.settings.set(MODULE_ID, 'vault', envelope);
-    privateState = structuredClone(state);
+    let committed, rejected;
+    const pending = {generation:vaultGeneration,secret,envelope:envelopeKey(envelope),promise:new Promise((resolve,reject)=>{committed=resolve;rejected=reject;})};
+    pending.promise.catch(()=>{});
+    pendingVaultWrite = pending;
+    try {
+      await game.settings.set(MODULE_ID, 'vault', envelope);
+      privateState = structuredClone(state);
+      rememberVault(envelope);
+      committed();
+    } catch (error) { rejected(error); throw error; }
+    finally { if (pendingVaultWrite === pending) pendingVaultWrite = null; }
     return state;
   }
   return game.settings.set(MODULE_ID, KEY, state);

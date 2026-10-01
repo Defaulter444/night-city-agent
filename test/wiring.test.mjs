@@ -67,7 +67,7 @@ for (const [label, script, template] of pairs) {
   });
 
   test(`${label}: каждый обработчик используется в разметке`, () => {
-    const used = usedActions(read(template));
+    const used = usedActions(read(template)+(script==="scripts/app-agent.mjs"?read("templates/agent.hbs"):""));
     for (const action of registeredActions(read(script))) {
       assert.ok(used.has(action), `действие «${action}» объявлено, но кнопки для него нет`);
     }
@@ -129,7 +129,7 @@ test("код не ищет селекторов, которых нет в раз
     ["scripts/app-gm.mjs", "templates/gm.hbs"]
   ];
   for (const [script, template] of checks) {
-    const hbs = read(template);
+    const hbs = read(template)+(script==="scripts/app-agent.mjs"?read("scripts/os-view.mjs"):"");
     const selectors = [...read(script).matchAll(/querySelector(?:All)?\(["'`]\.([a-z0-9-]+)/gi)]
       .map(m => m[1]);
     for (const cls of new Set(selectors)) {
@@ -146,30 +146,15 @@ test("манифест перечисляет существующие файл�
   }
 });
 
-test("полосы прокрутки внутри флекса умеют сжиматься", () => {
-  // У флекс-элемента `min-width` по умолчанию равен `auto`: он отказывается
-  // становиться уже своего содержимого. Из-за этого полоса устройств в шапке
-  // раздвигала строку, упиралась в край окна и обрезалась — при том, что
-  // `overflow-x: auto` у неё стоял и выглядел рабочим. Ошибка тихая: в вёрстке
-  // всё «правильно», а прокрутки нет.
-  const css = read("styles/agent.css");
-  const блоки = [...css.matchAll(/\.nca-top \.nca-devbar\s*\{([^}]*)\}/g)]
-    .map(m => m[1]);
-  assert.ok(блоки.length, "правило .nca-top .nca-devbar пропало");
-  const свод = блоки.join(" ");
-  assert.match(свод, /overflow-x:\s*auto|min-width:\s*0/,
-    "у полосы устройств нет ни прокрутки, ни разрешения сжиматься");
-  assert.match(свод, /min-width:\s*0/,
-    "полосе устройств не задан min-width: 0 — прокрутка не включится");
-});
-
-test("прокрутка полосы устройств колесом не потерялась", () => {
-  const src = read("scripts/app-agent.mjs");
-  assert.ok(src.includes(".nca-devbar"), "окно больше не находит полосу устройств");
-  assert.match(src, /addEventListener\("wheel"/,
-    "колесо не прокручивает полосу — целиться в шестипиксельную полоску мышью мучительно");
-  assert.match(src, /passive:\s*false/,
-    "обработчик колеса объявлен пассивным: preventDefault в нём не сработает");
+test("переключение устройств доступно нативным выбором", () => {
+  const hbs=read("templates/agent-modern.hbs"),src=read("scripts/app-agent.mjs");
+  assert.match(hbs, /select class="nca-device-select" aria-label="Устройство: текущий Агент"/);
+  assert.match(hbs, /option value="{{num}}"/);
+  assert.match(src, /nca-device-select.*addEventListener\('change'/);
+  assert.ok(src.includes("onPickDevice.call(this"));
+  const switcher=src.slice(src.indexOf('async function onPickDevice'),src.indexOf('async function onPickContact'));
+  assert.ok(switcher.includes('await this.saveDraft()'));
+  assert.ok(switcher.includes('clearOpenThread(this.num)'));
 });
 
 test("вложения видны и в переписке, и в перехвате", () => {

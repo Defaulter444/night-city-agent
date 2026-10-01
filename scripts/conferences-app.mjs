@@ -39,7 +39,7 @@ export class ConferencesApp extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
   async _prepareContext() {
-    await refreshState(); if (storageLocked()) return { locked: true };
+    await refreshState({cached:true}); if (storageLocked()) return { locked: true };
     const state = readState(), user = game.user;
     const devices = Object.values(state.devices).filter(d => user.isGM || d.owner === user.id);
     if (!devices.some(d => d.num === this.number)) this.number = devices[0]?.num ?? null;
