@@ -5,3 +5,5 @@
 `night-city-2045.png` — user-supplied map (`xjd6c617qsf91.png`), copied unchanged at 3066 × 2408 pixels and included in the update at the user's request. The image identifies itself as an unofficial map inspired by R. Talsorian Games and credits The Writer Cthulhu. Its embedded attribution is retained. This third-party artwork is not original module artwork and is not relicensed under the module's code license.
 
 The supplied device design reference images and generated test portrait are not distributed with the module. Contact portraits and alternative campaign maps can be supplied by the GM and players through the interface.
+
+`night-city-2045.webp` — lossless encoding of the supplied PNG at its original dimensions. All decoded RGBA pixels match the PNG; embedded attribution is preserved. It reduces the map download from 8,335,297 to 4,769,794 bytes. The original PNG remains available for existing links.

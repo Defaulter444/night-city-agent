@@ -35,6 +35,7 @@ function chooseNumbers(state,number,{exclude=[],selected=[]}={}) {
   return `<fieldset class="nca-member-picker"><legend>Участники</legend>${contacts.filter(c=>c.num!==number&&!exclude.includes(c.num)).map(c=>`<label class="nca-member-choice"><input type="checkbox" name="members" value="${c.num}" ${selected.includes(c.num)?'checked':''}><span>${esc(c.name)}<small>${c.num}</small></span></label>`).join('')}</fieldset>`+field('extra','Дополнительные номера через запятую');
 }
 const memberValues=fd=>[...new Set([...fd.getAll('members'),...String(fd.get('extra')||'').split(/[,;]+/).filter(s=>s.trim())].map(normalizeNumber))];
+const LOCAL_VIEW_ACTIONS=new Set(['nav','chatList','contactFilter','jobFilter','newsFilter','newsTrash','newsMore','fileFilter','fileTrash','documentSelect','placeSelect','gotoPlace','callScope','callFilter']);
 export function selectOSDocument(app,id) {
   app.osDocId=id;app.osTab='files';app.osFileTrash=false;app.osFileType='';app.osFolder='';(app.osSearch??={}).files='';
 }
@@ -49,7 +50,8 @@ export async function performOS(app,event,target) {
   app.osBusy=true;
   try {
     if(op.startsWith('clock')){await clockAction(op,target);return;}
-    await app.saveDraft();
+    if(LOCAL_VIEW_ACTIONS.has(op))void app.saveDraft().catch(error=>ui.notifications.warn(`Черновик пока не сохранён: ${error.message}`));
+    else await app.saveDraft();
     if(storageLocked())throw Error('Сначала откройте хранилище');
     const state=readState(),number=app.num,os=state.os??{},user=game.user;
     const mutate=(action,data={})=>osOperation(action,{number,...data});
@@ -59,6 +61,7 @@ export async function performOS(app,event,target) {
     if(op==='contactFilter'){app.osContactFilter=target.dataset.filter;return;}
     if(op==='jobFilter'){app.osJobArchive=target.dataset.filter==='archive';return;}
     if(op==='newsFilter'){app.osSavedOnly=!app.osSavedOnly;return;}
+    if(op==='newsMore'){app.osNewsLimit=(app.osNewsLimit||30)+30;return;}
     if(op==='newsTrash'){if(!user.isGM)throw Error('Доступно только мастеру');app.osNewsTrash=!app.osNewsTrash;return;}
     if(op==='articleDelete') {
       if(!user.isGM)throw Error('Доступно только мастеру');
@@ -222,6 +225,7 @@ export async function performOS(app,event,target) {
   }
 }
 export function OSRender(app) {
+  clearTimeout(app.osSearchTimer);
   app.osMapController?.destroy();app.osMapController=null;
   if(app.osTab!=='map')app.osMapMode=null;
   const root=app.element;if(!root)return;
@@ -240,8 +244,22 @@ export function OSRender(app) {
   const pageKey=`${app.num}|${app.osTab}`;
   if(app.osRenderedPage!==pageKey){const page=root.querySelector('.os-page');if(page)page.scrollTop=0;app.osRenderedPage=pageKey;}
   const input=root.querySelector('.os-search-input');
+  const scheduleNewsSearch=()=>{
+    clearTimeout(app.osSearchTimer);
+    app.osSearchTimer=setTimeout(()=>{
+      if(app.closing||app.osTab!=='news')return;
+      app.render().catch(error=>ui.notifications.warn(error.message));
+    },120);
+  };
+  if(input&&app.osTab==='news'&&input.value!==(app.osSearch?.news??'')){
+    input.value=app.osSearch?.news??'';
+    scheduleNewsSearch();
+  }
   const filter=()=>{const query=(input?.value??'').trim().toLocaleLowerCase('ru-RU');root.querySelectorAll('[data-os-search]').forEach(el=>el.hidden=!el.dataset.osSearch.includes(query));const none=root.querySelector('.os-no-results');if(none)none.hidden=!query||[...root.querySelectorAll('[data-os-search]')].some(el=>!el.hidden);};
-  input?.addEventListener('input',()=>{(app.osSearch??={})[app.osTab]=input.value;filter();});filter();
+  input?.addEventListener('input',()=>{
+    (app.osSearch??={})[app.osTab]=input.value;filter();
+    if(app.osTab==='news')scheduleNewsSearch();
+  });filter();
   const update=async(op,data)=>{try{await osOperation(op,{number:app.num,...data});}catch(e){ui.notifications.error(e.message);}finally{if(!app.closing)app.render();}};
   root.querySelectorAll('.os-job-step').forEach(el=>el.addEventListener('change',()=>update('jobStep',{id:el.dataset.id,stepId:el.dataset.step,done:el.checked})));
   root.querySelectorAll('.os-reminder-check').forEach(el=>el.addEventListener('change',()=>update('reminder',{id:el.dataset.id,done:el.checked})));

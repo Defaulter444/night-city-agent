@@ -503,7 +503,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!owned.some(d=>d.num===this.num)) this.num = owned[0]?.num ?? null;
     const device = this.num ? state.devices[this.num] : null;
 
-    const contacts = this.num ? M.contactsFor(state, this.num) : [];
+    const knownContacts = this.num ? M.contactsFor(state, this.num) : [];
+    const contacts = [...knownContacts];
     if (this.other && !contacts.some(c => c.num === this.other)) {
       contacts.unshift({
         num: this.other,
@@ -513,7 +514,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     const aloud = M.speaksAloud(device);
-    const messages = (this.num && this.other)
+    const showingMessages = (this.osTab || 'home') === 'messages';
+    const messages = (showingMessages && this.num && this.other)
       ? M.thread(state, this.num, this.other).map((m, index) => ({
           index, documentId: m.documentId, documentTitle: state.documents?.[m.documentId]?.title || 'Файл недоступен',documentUnavailable:Boolean(m.documentId&&!state.documents?.[m.documentId]), contact: m.contact,
           pinned: (state.organizer?.[this.num]?.pins ?? []).includes(`${M.threadKey(this.num,this.other)}:${index}`),
@@ -528,7 +530,7 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       : [];
 
     return {
-      ...OSContext(this,state),
+      ...OSContext(this,state,knownContacts),
       isGM, search: this.search, onlyPins: this.onlyPins, contactCount: contacts.length,
       draft: this.drafts[`${this.num}|${this.other}`] ?? state.organizer?.[this.num]?.drafts?.[this.other] ?? '',
       tags: state.organizer?.[this.num]?.tags?.[this.other] ?? [],
@@ -548,12 +550,30 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
         label: d.label || (d.kind === M.KIND.INTERNAL ? "внутренний" : "агент"),
         selected: d.num === this.num
       })),
-      contacts: contacts.map(c => ({ ...c, avatar:contactPortrait(state,this.num,c.num), selected: c.num === this.other, tags: state.organizer?.[this.num]?.tags?.[c.num] ?? [], searchText: [c.name,c.num,...(state.organizer?.[this.num]?.tags?.[c.num] ?? []),...M.thread(state,this.num,c.num).map(m => m.x)].join(' ') })),
+      contacts: showingMessages ? contacts.map(c => ({ ...c, avatar:contactPortrait(state,this.num,c.num), selected: c.num === this.other, tags: state.organizer?.[this.num]?.tags?.[c.num] ?? [], searchText: [c.name,c.num,...(state.organizer?.[this.num]?.tags?.[c.num] ?? []),...M.thread(state,this.num,c.num).map(m => m.x)].join(' ') })) : [],
       active: this.other,
       activeName: this.other ? M.contactLabel(state, this.num, this.other) : "",
       activeBookName: this.other ? M.bookName(state, this.num, this.other) : "",
       messages
     };
+  }
+
+  _replaceHTML(result, content, options) {
+    // Keep only the image, never cached pins or permission-dependent cards.
+    this.osMapController?.destroy();this.osMapController=null;
+    const image=result.body?.querySelector('.os-map-image');
+    const search=content?.querySelector('.os-search-input');
+    if(search&&document.activeElement===search&&this.osTab==='news')this._restoreFocus={selector:'.os-search-input',start:search.selectionStart,end:search.selectionEnd};
+    else if(this._restoreFocus?.selector==='.os-search-input')this._restoreFocus=null;
+    if(storageLocked())this.osMapImage=null;
+    else if(image){
+      const source=image.dataset.mapSrc;
+      if(this.osMapImage?.getAttribute('src')===source&&(!this.osMapImage.complete||this.osMapImage.naturalWidth>0)){
+        this.osMapImage.alt=image.alt;
+        image.replaceWith(this.osMapImage);
+      }else{image.src=source;this.osMapImage=image;}
+    }
+    return super._replaceHTML(result,content,options);
   }
 
   async saveDraft() {
@@ -674,7 +694,9 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   _onClose(options) {
+    clearTimeout(this.osSearchTimer);
     this.osMapController?.destroy();this.osMapController=null;
+    this.osMapImage=null;
     super._onClose?.(options);
     Hooks.off(UPDATE_HOOK, this._onUpdate);
     Hooks.off(RING_HOOK, this._onRing);

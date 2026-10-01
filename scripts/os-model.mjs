@@ -10,8 +10,13 @@ const safeId = key => { if (['__proto__','prototype','constructor'].includes(key
 export const OS_TABS = [['home','Главная','house'],['contacts','Контакты','address-book'],['messages','Сообщения','comments'],['map','Карта','map-location-dot'],['wallet','Кошелёк','wallet'],['jobs','Задания','list-check'],['files','Файлы','folder-open'],['news','Data Pool','globe'],['calls','Вызовы','phone'],['settings','Настройки','gear']];
 export const JOB_STATES = { planned:'Запланировано', active:'В работе', blocked:'Приостановлено', done:'Завершено', archived:'Архив' };
 export const PLACE_TYPES = { place:'Место', fixer:'Фиксер', shop:'Магазин', clinic:'Клиника', home:'Убежище', transit:'Транспорт', danger:'Опасность' };
-export const DEFAULT_CITY_MAP='modules/night-city-agent/assets/night-city-2045.png';
-export function cityMap(state) { return {title:'Найт-Сити 2045',...state.os?.map,image:state.os?.map?.image||DEFAULT_CITY_MAP}; }
+export const DEFAULT_CITY_MAP='modules/night-city-agent/assets/night-city-2045.webp';
+const LEGACY_CITY_MAP='modules/night-city-agent/assets/night-city-2045.png';
+export function cityMap(state) {
+  const map={title:'Найт-Сити 2045',...state.os?.map};
+  map.image=!map.image||map.image===LEGACY_CITY_MAP?DEFAULT_CITY_MAP:map.image;
+  return map;
+}
 export function callsForViewer(state,user,number,scope='all') {
   return Object.values(state.os?.calls??{}).filter(c=>user?.isGM&&scope==='all'||c.members.includes(number)&&(user?.isGM||state.devices[number]?.owner===user?.id)).sort((a,b)=>Number(a.status==='ended')-Number(b.status==='ended')||b.createdAt-a.createdAt);
 }

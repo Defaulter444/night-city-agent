@@ -26,17 +26,18 @@ const meta = (key,value) => `<div class="os-detail"><span>${esc(key)}</span><str
 function visibleDocuments(state,user) {
   return Object.values(state.documents??{}).filter(d=>d.removal!=='global'&&!documentHidden(state,d.id,user)&&(user.isGM||d.canEdit!==undefined||canReadDocument(state,d,user,user.viewedScene)));
 }
-export function OSContext(app,state) {
+export function OSContext(app,state,preparedContacts) {
   const number=app.num, device=state.devices[number], os=state.os??{}, user=game.user;
   const page=app.osTab||'home', profile=os.profiles?.[number]??{}, map=cityMap(state);
   const npcPayer=user.isGM&&isNPCDevice(device),monitoring=user.isGM&&app.osCallScope!=='mine';
   const available=key=>Object.values(os[key]??{}).filter(r=>(key==='articles'?visibleArticle:key==='places'?visiblePlace:visibleRecord)(state,r,user));
-  const jobs=available('jobs'),places=available('places'),articles=available('articles').sort(comparePublications);
-  const contacts=number?contactsFor(state,number):[];
-  const devices=Object.values(state.devices).filter(d=>user.isGM||d.owner===user.id);
+  const jobs=['home','jobs'].includes(page)?available('jobs'):[];
+  const places=['home','jobs','map'].includes(page)?available('places'):[];
+  const articles=['home','news'].includes(page)?available('articles').sort(comparePublications):[];
+  const contacts=preparedContacts??(number?contactsFor(state,number):[]);
   const actor=device?actorForDevice(device):null;
   const canWallet=!npcPayer && actor && (user.isGM||actor.isOwner) && hasLedger(actor);
-  const reminders=Object.values(os.reminders?.[number]??{}).sort((a,b)=>Number(a.done)-Number(b.done)||a.due-b.due);
+  const reminders=['home','wallet','jobs'].includes(page)?Object.values(os.reminders?.[number]??{}).sort((a,b)=>Number(a.done)-Number(b.done)||a.due-b.due):[];
   const calls=callsForViewer(state,user,number,monitoring?'all':'mine');
   const activeCallCount=calls.filter(c=>c.status!=='ended').length;
   const unread=contacts.reduce((s,c)=>s+c.unread,0);
@@ -53,7 +54,7 @@ export function OSContext(app,state) {
     return `<label class="os-reminder ${r.done?'done':''}"><input type="checkbox" class="os-reminder-check" data-id="${r.id}" ${r.done?'checked':''}><span>${esc(r.title)}<small>${r.clock!=='real'?'Игровое время':'Реальное время'} · <span data-reminder-due="${r.due}" data-clock="${r.clock}" data-calendar-id="${esc(r.calendarId||'')}" data-done="${r.done}">${r.done?'Готово':due===null?'Календарь недоступен':due<=0?'Срок наступил':`через ${Math.ceil(due/60)} мин.`}</span></small></span></label>`;
   }).join('')||'<p class="os-muted">Добавьте встречу или напоминание.</p>';
   const journalOwner=user.isGM?(device.owner||user.id):user.id;
-  const journal=game.journal?.get(game.settings.get('night-city-agent','noteJournals')?.[journalOwner]);
+  const journal=(page==='home'||page==='files'&&app.osFileType==='notes')?game.journal?.get(game.settings.get('night-city-agent','noteJournals')?.[journalOwner]):null;
   const notes=journal?.testUserPermission(user,'OWNER')?[...journal.pages]:[];
   const notesList=(page==='home'?notes.slice(-5):[...notes]).reverse().map(p=>button('notePage',p.name,`data-page="${esc(p.id)}" data-os-search="${searchable(p.name)}"`,'note-sticky')).join('')||'<p class="os-muted">Личные записи хранятся в вашем журнале.</p>';
   let content='';
@@ -83,21 +84,27 @@ export function OSContext(app,state) {
     const list=places.filter(p=>!app.osMapCategory||p.category===app.osMapCategory),selected=list.find(p=>p.id===app.osPlaceId);
     const mb=(action,label,attrs='',symbol='')=>`<button type="button" data-map-action="${action}" ${attrs}>${symbol?icon(symbol):''}${esc(label)}</button>`;
     const query=p=>searchable(p.title+' '+p.district+' '+(PLACE_TYPES[p.category]||''));
-    const mapMarkup=`<div class="os-map-viewport" tabindex="0" role="region" aria-label="Карта города: перетаскивание мышью, колесо для масштаба, стрелки для перемещения"><div class="os-map-area"><div class="os-map-stage"><img class="os-map-image" src="${esc(map.image)}" alt="${esc(map.title)}" draggable="false">${list.map(p=>`<button type="button" class="os-map-pin ${p.id===app.osPlaceId?'on':''}" style="left:${p.x}%;top:${p.y}%" data-x="${p.x}" data-y="${p.y}" data-action="osAction" data-os="placeSelect" data-id="${p.id}" data-os-search="${query(p)}" title="${esc(p.title)}${user.isGM?' · перетащите для перемещения':''}" aria-label="Место: ${esc(p.title)}">${icon('location-dot')}</button>`).join('')}</div></div></div>`;
+    const mapMarkup=`<div class="os-map-viewport" tabindex="0" role="region" aria-label="Карта города: перетаскивание мышью, колесо для масштаба, стрелки для перемещения"><div class="os-map-area"><div class="os-map-stage"><img class="os-map-image" data-map-src="${esc(map.image)}" decoding="async" alt="${esc(map.title)}" draggable="false">${list.map(p=>`<button type="button" class="os-map-pin ${p.id===app.osPlaceId?'on':''}" style="left:${p.x}%;top:${p.y}%" data-x="${p.x}" data-y="${p.y}" data-action="osAction" data-os="placeSelect" data-id="${p.id}" data-os-search="${query(p)}" title="${esc(p.title)}${user.isGM?' · перетащите для перемещения':''}" aria-label="Место: ${esc(p.title)}">${icon('location-dot')}</button>`).join('')}</div></div></div>`;
     content=start(map.title,'РАЙОНЫ · МЕСТА · КОНТАКТЫ',user.isGM?mb('add','Добавить метку','aria-pressed="false"','location-dot')+button('mapEdit','Карта и погода','','image')+button('defaultMap','Карта 2045','','map'):'')+
       `<div class="os-map-tools">${mb('out','Меньше','','minus')}<output class="os-map-scale" aria-label="Масштаб карты">100%</output>${mb('in','Больше','','plus')}${mb('fit','Вся карта','','expand')}${mb('cancel','Отменить размещение','hidden','xmark')}</div><p class="os-map-status" role="status"></p><div class="os-grid os-map-layout"><div>${mapMarkup}</div><div>${selected?section(selected.title,`${user.isGM?audienceStatus(selected):''}${img(selected.image,'os-cover')}<p>${esc(selected.body)}</p>${meta('Район',selected.district)}${meta('Категория',PLACE_TYPES[selected.category])}${meta('Контакт',selected.contact)}<div class="os-actions">${mb('focus','Показать на карте',`data-id="${selected.id}"`,'crosshairs')}${button('sharePlace','Отправить место',`data-id="${selected.id}"`,'paper-plane')}${user.isGM?button('place','Изменить',`data-id="${selected.id}"`,'pen')+mb('move','Переместить',`data-id="${selected.id}"`,'arrows-up-down-left-right'):''}</div>`):''}${panel(app,'places','Места · '+list.length,search(app,'Поиск места или района')+`<select class="os-map-category" aria-label="Категория мест"><option value="">Все места</option>${Object.entries(PLACE_TYPES).map(([k,v])=>`<option value="${k}" ${app.osMapCategory===k?'selected':''}>${v}</option>`).join('')}</select><div class="os-place-list">${list.map(p=>`<div data-os-search="${query(p)}">${button('placeSelect',p.title,`data-id="${p.id}" data-focus="true" class="${selected?.id===p.id?'on':''}"`,'location-dot')}</div>`).join('')||'<p class="os-muted">Нет доступных меток.</p>'}</div>`)}</div></div>`;
   }
   if(page==='news') {
     const trash=user.isGM&&app.osNewsTrash,removed=Object.values(os.articleTrash??{});
     const selected=trash?removed.sort((a,b)=>b.deletedAt-a.deletedAt):articles.filter(a=>!app.osSavedOnly||(os.saved?.[number]??[]).includes(a.id));
+    const query=(app.osSearch?.news??'').trim().toLocaleLowerCase('ru-RU');
+    const scope=`${number}|${!!trash}|${!!app.osSavedOnly}|${query}`;
+    if(app.osNewsScope!==scope){app.osNewsScope=scope;app.osNewsLimit=30;}
+    const matches=query?selected.filter(a=>`${a.title} ${a.body} ${a.source} ${a.category}`.toLocaleLowerCase('ru-RU').includes(query)):selected;
+    const shown=matches.slice(0,app.osNewsLimit||30);
     const headingActions=(trash?'':button('newsFilter',app.osSavedOnly?'Вся лента':'Закладки','','bookmark'))+
       (user.isGM?button('newsTrash',trash?'Назад в ленту':`Удалённые (${removed.length})`,'',trash?'arrow-left':'trash-can')+(trash?'':button('article','Публикация','','plus')):'');
     content=start(trash?'Удалённые публикации':'Data Pool',trash?'ВОССТАНОВЛЕНИЕ · ТОЛЬКО ДЛЯ МАСТЕРА':'НОВОСТИ ГОРОДА · ОТКРЫТЫЕ ДАННЫЕ',headingActions)+
-      search(app,'Поиск по заголовкам, тексту и источникам')+`<div class="os-news-grid">${selected.map(a=>{
+      search(app,'Поиск по заголовкам, тексту и источникам')+`<div class="os-news-grid">${shown.map(a=>{
         const actions=trash?button('articleRestore','Восстановить',`data-id="${a.id}"`,'rotate-left'):'';
         return section(a.title,`${user.isGM?audienceStatus(a):''}${img(a.image,'os-cover')}<div class="os-article-meta"><span>${esc(a.source||'Городская лента')}</span><span>${esc(a.category)}</span><time>${esc(publicationLabel(a))}</time></div><p class="os-pre">${esc(a.body)}</p><div class="os-actions">${trash?actions:button('bookmark',(os.saved?.[number]??[]).includes(a.id)?'В закладках':'Сохранить',`data-id="${a.id}" aria-pressed="${(os.saved?.[number]??[]).includes(a.id)}"`,'bookmark')+(user.isGM?button('article','Изменить',`data-id="${a.id}"`,'pen'):button('shareArticle','Отправить',`data-id="${a.id}"`,'paper-plane'))+more(button('articleFile','В файл',`data-id="${a.id}"`,'file-lines')+(user.isGM?button('shareArticle','Отправить',`data-id="${a.id}"`,'paper-plane')+button('articleDelete','Удалить',`data-id="${a.id}" class="os-danger"`,'trash-can'):''))}</div>`)
           .replace('<section class="os-card">',`<section class="os-card os-article" data-os-search="${searchable(a.title+' '+a.body+' '+a.source+' '+a.category)}">`);
-      }).join('')||empty(trash?'Нет удалённых публикаций':'Лента пока пуста',trash?'Удалённые новости можно восстановить с прежней датой и доступом.':'Мастер может публиковать новости, слухи и объявления для всей группы или выбранных получателей.')}</div>`;
+      }).join('')||empty(query?'Ничего не найдено':trash?'Нет удалённых публикаций':'Лента пока пуста',query?'Попробуйте другое слово или очистите поиск.':trash?'Удалённые новости можно восстановить с прежней датой и доступом.':'Мастер может публиковать новости, слухи и объявления для всей группы или выбранных получателей.')}</div>`+
+      (matches.length>shown.length?`<div class="os-actions">${button('newsMore','Показать ещё 30','','chevron-down')}<span class="os-muted">${shown.length} из ${matches.length}</span></div>`:'');
   }
   if(page==='files') {
     const allDocs=Object.values(state.documents??{}).filter(d=>d.removal!=='global'&&(user.isGM||d.canEdit!==undefined||canReadDocument(state,d,user,user.viewedScene)));

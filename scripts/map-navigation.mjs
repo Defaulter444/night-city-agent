@@ -130,9 +130,11 @@ export function bindMapNavigation(app,{isGM,create,move,onError}) {
     if(action==='fit'){view.zoom=1;paint({x:50,y:50});}
     if(action==='focus')focus(button.dataset.id);
   });
-  const loaded=()=>{paint();if(app.osMapFocus){focus(app.osMapFocus);app.osMapFocus=null;}};
-  listen(image,'load',loaded);listen(image,'error',()=>{if(status)status.textContent='Карта не загрузилась. Проверьте путь к изображению в настройках карты.';});
+  const loaded=()=>{if(!image.naturalWidth)return;paint();viewport.setAttribute('aria-busy','false');mode(app.osMapMode);if(app.osMapFocus){focus(app.osMapFocus);app.osMapFocus=null;}};
+  const failed=()=>{viewport.setAttribute('aria-busy','false');if(status)status.textContent='Карта не загрузилась. Проверьте путь к изображению в настройках карты.';};
+  listen(image,'load',loaded);listen(image,'error',failed);
   const observer=new ResizeObserver(()=>paint());observer.observe(viewport);
   mode(app.osMapMode);loaded();
+  if(!image.naturalWidth){if(image.complete)failed();else{viewport.setAttribute('aria-busy','true');if(status)status.textContent='Загружается карта…';}}
   return {destroy(){disposed=true;endDrag(true);abort.abort();observer.disconnect();}};
 }
