@@ -29,7 +29,7 @@ function reset(){
  const source=actor('Источник',1000),target=actor('Получатель',50,'p');p.character=target;canvas.tokens.controlled=[{actor:source}];return{source,target};
 }
 const payload=(extra={})=>({from:npc,to:pn,amount:100,note:'За работу',operationId:'a'.repeat(32),...extra});
-const socket=registerSocket();socket.executeForUsers=async()=>{};
+const socket=registerSocket();socket.notify=()=>{};
 const wire=(data,by)=>socket.handlers.get('npcPayment').call({socketdata:{userId:by}},data);
 
 test('GM pays as an NPC without a source sheet and records the NPC identity',async()=>{

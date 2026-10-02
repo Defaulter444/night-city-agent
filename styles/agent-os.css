@@ -345,6 +345,18 @@
 .nca-app .nca-os .os-nav button span {font-size:inherit;}
 @container agent (max-width:999px) {.nca-app .nca-os .os-nav button {font-size:max(.85rem,12px);}}
 .nca-os:has(.nca-warn) .os-systembar>span:first-child::before {background:#edc879;}
+.nca-app .nca-sync-panel {margin:auto;max-width:560px;padding:32px;text-align:center;color:var(--nca-muted);}
+.nca-sync-panel>i {font-size:30px;color:var(--os-cyan);margin-bottom:16px;}
+.nca-sync-panel h2 {color:var(--nca-text);font-size:20px;margin:0 0 12px;}
+.nca-sync-panel>div {display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:20px;}
+.nca-sync-panel button {width:auto;padding:8px 14px;}
+.nca-connection-report {max-height:320px;overflow:auto;white-space:pre-wrap;user-select:text;}
+.nca-sync-notice {padding:6px 16px;flex-shrink:0;color:var(--nca-muted);font-size:12px;border-bottom:1px solid var(--nca-line);}
+.nca-sync-notice button {width:auto;margin-left:8px;}
+.nca-sync-spin {animation:nca-sync-spin 1.2s linear infinite;}
+@keyframes nca-sync-spin {to {transform:rotate(360deg);}}
+@media (prefers-reduced-motion:reduce) {.nca-sync-spin {animation:none;}}
+.os-reduced-motion .nca-sync-spin {animation:none;}
 .os-article .os-cover {max-height:160px;}
 
 .nca-app:has(.nca-os):not(.minimized):not(.minimizing) {min-width:420px;min-height:520px;}

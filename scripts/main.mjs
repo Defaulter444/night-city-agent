@@ -2,7 +2,7 @@
  * Точка входа модуля «Агент».
  */
 import { MODULE_ID, registerSettings, readState, initializeStorage, storageLocked } from "./store.mjs";
-import { registerSocket, refreshState, invalidateProjection, broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
+import { registerSocket, refreshState, requestState, connectionDiagnostics, invalidateProjection, broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
 import { openAgent, closeAllAgents } from "./app-agent.mjs";
 import { openGMPanel } from "./app-gm.mjs";
 import { openHelp } from "./help.mjs";
@@ -38,7 +38,11 @@ Hooks.once("ready", async () => {
     invalidateProjection();
     refreshState({cached:true}).then(()=>Hooks.callAll(UPDATE_HOOK)).catch(()=>{});
   };
-  for(const event of ['canvasReady','userConnected','createActor','deleteActor','createItem','deleteItem']) Hooks.on(event,refreshAccess);
+  for(const event of ['createActor','deleteActor','createItem','deleteItem']) Hooks.on(event,refreshAccess);
+  // The cache context already includes scene and primary GM. Another player
+  // joining does not invalidate this player's permissions or discard a reply.
+  Hooks.on('canvasReady',()=>requestState());
+  Hooks.on('userConnected',(id,connected)=>requestState({force:Boolean(connected&&game.users.get(id)?.isGM)}));
   Hooks.on('updateUser',(user,changes)=>{
     if(requiresUserAccessRefresh(user.id,changes,game.user.id))refreshAccess();
     else Hooks.callAll(UPDATE_HOOK);
@@ -47,7 +51,6 @@ Hooks.once("ready", async () => {
     if(requiresAccessRefresh(type,changes))refreshAccess();
     else Hooks.callAll(UPDATE_HOOK);
   });
-  try { await initializeStorage(); await refreshState(); } catch (e) { ui.notifications.warn(`Агент: ${e.message}`); }
   // Кнопка «Зачислить» в карточке перевода живёт в чате, а не в окне Агента,
   // поэтому обработчик вешается один раз на весь сеанс.
   Wealth.bindDepositButton();
@@ -55,7 +58,7 @@ Hooks.once("ready", async () => {
   const mod = game.modules.get(MODULE_ID);
   if (mod) {
     mod.api = {
-      openAgent, openGMPanel, openWorkspace, openConferences, openHelp, closeAllAgents, readState, model: M,
+      openAgent, openGMPanel, openWorkspace, openConferences, openHelp, closeAllAgents, readState, model: M, connectionDiagnostics,
       // Деньги и службы отданы наружу: их удобно дёргать макросами мастера.
       transferEb: Wealth.transfer,
       adjustEb: Wealth.adjust,
@@ -81,6 +84,10 @@ Hooks.once("ready", async () => {
   Hooks.on('simple-calendar-date-time-change',checkOSReminders);
   Hooks.on('simple-calendar-date-time-change',tick);
 
+  // Publish the API and buttons before asking the remote GM for a snapshot.
+  initializeStorage().then(()=>{requestState();Hooks.callAll(UPDATE_HOOK);})
+    .catch(error=>{if(game.user.isGM)ui.notifications.warn(`Агент: ${error.message}`);});
+
 });
 
 /**
@@ -90,7 +97,7 @@ Hooks.once("ready", async () => {
  */
 Hooks.on("updateSetting", setting => {
   if ([`${MODULE_ID}.state`, `${MODULE_ID}.vault`].includes(setting?.key)) {
-    invalidateProjection();
+    invalidateProjection({access:false});
     refreshState({cached:true}).then(()=>Hooks.callAll(UPDATE_HOOK)).catch(()=>Hooks.callAll(UPDATE_HOOK));
   }
 });

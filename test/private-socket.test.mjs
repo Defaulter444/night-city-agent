@@ -21,3 +21,21 @@ test('reply is accepted only from expected server-authenticated sender',async()=
  await socket.receive({protocol:'nca-direct-1',response:'a',value:'forged'},'q');assert.equal(value,undefined);assert.ok(socket.pending.has('a'));
  await socket.receive({protocol:'nca-direct-1',response:'a',value:'valid'},'gm');assert.equal(value,'valid');assert.equal(socket.pending.size,0);
 });
+
+test('GM notifications create no waiting requests even when recipients never answer',async()=>{
+ const socket=new PrivateSocket();packets.length=0;game.user=gm;
+ socket.register('refresh',()=>new Promise(()=>{}));
+ socket.notify('refresh',['gm','p','q','p'],{_ncaRevision:7});
+ assert.equal(socket.pending.size,0);assert.equal(packets.length,2);
+ for(const [,packet,options]of packets){assert.equal(packet.notify,true);assert.equal(packet.name,'refresh');assert.ok(packet.request);assert.equal(options.recipients.length,1);}
+});
+
+test('notification packets cannot bypass authenticated GM checks or invoke writes',async()=>{
+ const socket=new PrivateSocket();game.user=p;let delivered=0,writes=0;
+ socket.register('deliver',()=>delivered++);socket.register('create',()=>writes++);
+ const packet={protocol:'nca-direct-1',notify:true,request:'notice',name:'deliver',args:[{senderId:'gm'}]};
+ await socket.receive(packet,'q');assert.equal(delivered,0);
+ await socket.receive({...packet,name:'create'},'gm');assert.equal(writes,0);
+ await socket.receive(packet,'gm');assert.equal(delivered,1);assert.equal(socket.pending.size,0);
+ assert.throws(()=>socket.notify('deliver',['q'],{}),/Недопустимое/);game.user=gm;
+});

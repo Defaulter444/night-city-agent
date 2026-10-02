@@ -17,7 +17,7 @@ globalThis.game={user:gm,users,actors:[],socket:{on(){},emit(){}},settings:{
 }};
 globalThis.Hooks={callAll(){}};
 const socket=registerSocket();
-socket.executeForUsers=async(name,ids,payload)=>delivered.push({name,ids,payload});
+socket.notify=(name,ids,payload)=>delivered.push({name,ids,payload});
 function reset(){
   failWrite=false;delivered=[];state=M.blankState();game.user=gm;
   for(const [num,owner] of [['1111-1111','p'],['2222-2222','q'],['3333-3333','r'],['4444-4444',null],['5555-5555','offline']])M.addDevice(state,{num,owner});
@@ -73,9 +73,9 @@ test('failed durable write sends nothing and allows a safe retry',async()=>{
 });
 
 test('notification failures cannot roll back a committed mailing or trigger duplicate delivery',async()=>{
-  reset();const notify=socket.executeForUsers;socket.executeForUsers=async()=>{throw Error('disconnected');};
+  reset();const notify=socket.notify;socket.notify=()=>{throw Error('disconnected');};
   try{assert.equal((await send()).count,2);assert.equal((await send()).replayed,true);}
-  finally{socket.executeForUsers=notify;}
+  finally{socket.notify=notify;}
   assert.equal(M.thread(state,'1111-1111','3333-3333').length,1);
 });
 

@@ -194,10 +194,10 @@ await test('player-to-NPC file delivery uses authenticated notifications after d
   const D=await import('../scripts/documents-model.mjs');
   addDevice(cached,{num:'1111-1111',owner:'player'});addDevice(cached,{num:'2222-2222',label:'Роуг'});
   const doc=D.createDocument(cached,{title:'File',body:'x',holders:['1111-1111']});
-  const delivered=[],execute=socket.executeForUsers;gm.active=true;player.active=true;globalThis.Hooks={callAll(){}};
-  socket.executeForUsers=async(name,ids,payload)=>{delivered.push({name,ids,payload});};
+  const delivered=[],execute=socket.notify;gm.active=true;player.active=true;globalThis.Hooks={callAll(){}};
+  socket.notify=(name,ids,payload)=>{delivered.push({name,ids,payload});};
   try{await handlers.get('documentOperation').call({socketdata:{userId:'player'}},{op:'sendDocument',from:'1111-1111',to:'2222-2222',documentId:doc.id});}
-  finally{socket.executeForUsers=execute;gm.active=false;player.active=false;}
+  finally{socket.notify=execute;gm.active=false;player.active=false;}
   assert.ok(delivered.some(d=>d.name==='deliver'&&d.ids.includes('gm')&&d.payload.senderId==='player'));
   await handlers.get('deliver')({from:'1111-1111',to:'2222-2222',senderId:'player'});
   assert.ok(notifications.some(n=>n.text.includes('Роуг')&&n.text.includes('1111-1111')));

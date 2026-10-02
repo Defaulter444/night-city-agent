@@ -1,5 +1,6 @@
 /** Foundry 12 server-side recipients; socketlib filters broadcasts only on clients. */
 import { uid } from './documents-model.mjs';
+const notifications = new Set(['refresh', 'deliver', 'conferenceDeliver']);
 export class PrivateSocket {
   constructor() {
     this.handlers = new Map(); this.pending = new Map(); this.requests = new Map();
@@ -15,6 +16,19 @@ export class PrivateSocket {
   async executeForUsers(name, ids, ...args) {
     return Promise.all([...new Set(ids)].filter(id => game.users.get(id)?.active)
       .map(id => this.request(id, name, args)));
+  }
+  notify(name, ids, ...args) {
+    if (!game.user.isGM || !notifications.has(name)) throw Error('Недопустимое уведомление');
+    for (const target of new Set(ids)) {
+      if (!game.users.get(target)?.active) continue;
+      if (target === game.user.id) {
+        this.invoke(name, args, game.user.id).catch(() => {});
+      } else {
+        // Older clients reply to this request; no pending promise is needed.
+        // New clients skip acknowledgement. A committed write never waits here.
+        this.send(target, { request: uid(), name, args, notify: true });
+      }
+    }
   }
   async request(target, name, args) {
     if (target === game.user.id) return this.invoke(name, args, game.user.id);
@@ -38,6 +52,12 @@ export class PrivateSocket {
   }
   async receive(packet, senderId) {
     if (packet?.protocol !== 'nca-direct-1') return;
+    if (packet.notify) {
+      if (!notifications.has(packet.name) || !Array.isArray(packet.args)) return;
+      // invoke checks the authenticated sender supplied by the Foundry server.
+      await this.invoke(packet.name, packet.args, senderId).catch(() => {});
+      return;
+    }
     if (packet.response) {
       const pending = this.pending.get(packet.response);
       if (!pending || pending.target !== senderId) return;

@@ -16,7 +16,7 @@ globalThis.game={user:gm,users,actors:[],modules:new Map(),time:{worldTime:0},so
 }};
 globalThis.Hooks={callAll(){}};
 const socket=registerSocket();
-socket.executeForUsers=async(name,ids,payload)=>delivered.push({name,ids,payload});
+socket.notify=(name,ids,payload)=>delivered.push({name,ids,payload});
 function reset(){
  failWrite=false;delivered=[];state=M.blankState();game.user=gm;game.journal=undefined;
  for(const [num,owner]of[['1111-1111','p'],['2222-2222','q'],['3333-3333','r'],['4444-4444',null]])M.addDevice(state,{num,owner});

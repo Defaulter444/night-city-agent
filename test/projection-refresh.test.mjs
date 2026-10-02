@@ -7,6 +7,8 @@ test('health and wallet changes reuse data, while ownership and memory-chip chan
   for(const changes of [{ownership:{player:0}},{'ownership.default':0},{'-=ownership':null}])assert.equal(requiresAccessRefresh('Actor',changes),true);
   for(const changes of [{system:{amount:0}},{'system.equipped':'stored'},{system:{installedItems:{list:[]}}},{flags:{'night-city-agent':{'-=documents':null}}},{name:'Memory Chip'},{'-=flags':null},{'==flags':{}},{ownership:{default:0}}])assert.equal(requiresAccessRefresh('Item',changes),true);
   assert.equal(requiresAccessRefresh('Item',{system:{price:{market:200},hp:{value:5}}}),false);
+  assert.equal(requiresAccessRefresh('Item',{flags:{'another-module':{color:'red'}}}),false);
+  assert.equal(requiresAccessRefresh('Item',{'flags.babele.originalName':'Memory Chip'}),true);
 });
 test('user flags and other players changing scene reuse the projection',()=>{
   assert.equal(requiresUserAccessRefresh('other',{viewedScene:'scene'},'player'),false);
@@ -68,4 +70,60 @@ test('a new context does not wait for an unanswered request or its queued refres
 test('GM disconnect releases waiting renders without waiting for the socket timeout',async()=>{
   const f=fixture(),render=f.refresh.refresh({cached:true});await tick();f.setContext(null);f.refresh.invalidate();
   await render;assert.equal(f.accepted.length,0);f.requests[0].reject(Error('timeout'));await tick();
+});
+
+test('setting and committed-revision notices share a matching in-flight snapshot',async()=>{
+  const f=fixture();f.refresh.invalidate();
+  const setting=f.refresh.refresh({cached:true});await tick();
+  const notices=Array.from({length:10},()=>f.refresh.refresh({cached:true,minRevision:9}));
+  assert.equal(f.requests.length,1);
+  f.requests[0].resolve({revision:9});await Promise.all([setting,...notices]);
+  assert.equal(f.requests.length,1);assert.equal(f.accepted.length,1);assert.equal(f.refresh.status().fresh,true);
+});
+
+test('a committed-revision notice rejects an older response and coalesces the follow-up',async()=>{
+  const f=fixture(),initial=f.refresh.refresh({cached:true});await tick();
+  const notice=f.refresh.refresh({cached:true,minRevision:3});
+  f.requests[0].resolve({revision:2,documents:{revoked:{}}});await tick();
+  assert.equal(f.accepted.length,0);assert.equal(f.requests.length,2);
+  f.requests[1].resolve({revision:3,documents:{}});await Promise.all([initial,notice]);
+  assert.deepEqual(f.accepted,[{revision:3,documents:{}}]);
+  await f.refresh.refresh({cached:true,minRevision:3});assert.equal(f.requests.length,2);
+});
+
+test('access invalidation immediately makes the cached projection unusable',async()=>{
+  const f=fixture(),initial=f.refresh.refresh({cached:true});await tick();f.requests[0].resolve({revision:8});await initial;
+  assert.equal(f.refresh.status().usable,true);f.refresh.invalidate();assert.equal(f.refresh.status().usable,false);
+  const revoked=f.refresh.refresh({cached:true});await tick();f.requests[1].resolve({revision:8,documents:{}});await revoked;
+  assert.equal(f.refresh.status().usable,true);
+});
+
+test('a replacement GM or an authoritative reset can serve a lower restored revision',async()=>{
+  const f=fixture(),initial=f.refresh.refresh({cached:true,minRevision:100});await tick();f.requests[0].resolve({revision:100});await initial;
+  f.setContext('replacement-gm');const next=f.refresh.refresh({cached:true});await tick();f.requests[1].resolve({revision:1});await next;
+  assert.equal(f.refresh.status().fresh,true);
+  f.refresh.invalidate();const restored=f.refresh.refresh({cached:true});await tick();f.requests[2].resolve({revision:0});await restored;
+  assert.equal(f.refresh.status().fresh,true);
+});
+
+test('content refresh keeps a usable screen while permission refresh hides it',async()=>{
+  const f=fixture(),initial=f.refresh.refresh({cached:true});await tick();f.requests[0].resolve({revision:1});await initial;
+  f.refresh.invalidate({access:false});assert.equal(f.refresh.status().usable,true);assert.equal(f.refresh.status().fresh,false);
+  const content=f.refresh.refresh({cached:true,minRevision:2});await tick();assert.equal(f.refresh.status().usable,true);
+  f.requests[1].resolve({revision:2});await content;assert.equal(f.refresh.status().fresh,true);
+  f.refresh.invalidate();assert.equal(f.refresh.status().usable,false);
+});
+
+test('repeated obsolete replies produce an error after a single follow-up',async()=>{
+  const f=fixture(),read=f.refresh.refresh({cached:true,minRevision:9});await tick();
+  f.requests[0].resolve({revision:1});await tick();assert.equal(f.requests.length,2);
+  f.requests[1].resolve({revision:1});await assert.rejects(read,/устаревшие данные/);await tick();
+  assert.equal(f.requests.length,2);assert.equal(f.accepted.length,0);assert.match(f.refresh.status().error,/устаревшие/);
+});
+
+test('disconnect clears an error so the same GM can reconnect and serve a new read',async()=>{
+  const f=fixture(),initial=f.refresh.refresh({cached:true});await tick();f.requests[0].reject(Error('timeout'));await assert.rejects(initial);
+  f.setContext(null);await f.refresh.refresh({cached:true});f.setContext('world|player|scene|gm');
+  assert.equal(f.refresh.status().error,null);const resumed=f.refresh.refresh({cached:true});await tick();f.requests[1].resolve({revision:2});await resumed;
+  assert.equal(f.refresh.status().fresh,true);
 });

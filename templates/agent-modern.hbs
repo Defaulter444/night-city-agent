@@ -1,4 +1,12 @@
 <div class="nca nca-modern nca-os {{#if osCompact}}os-compact{{/if}} {{#if osReducedMotion}}os-reduced-motion{{/if}}">
+{{#if shell}}
+<header class="nca-top"><div class="nca-brand"><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i><div><strong>АГЕНТ</strong><span>НАЙТ-СИТИ · ЛИЧНАЯ СВЯЗЬ</span></div></div><button data-action="connectionInfo" title="Диагностика связи" aria-label="Диагностика связи"><i class="fa-solid fa-signal" aria-hidden="true"></i></button></header>
+<section class="nca-sync-panel" role="status" aria-live="polite" aria-busy="{{syncing}}">
+<i class="fa-solid {{#if syncing}}fa-circle-notch nca-sync-spin{{else}}fa-tower-broadcast{{/if}}" aria-hidden="true"></i>
+{{#if syncing}}<h2>Получаем данные от Мастера</h2><p>Связь, файлы и места на карте появятся после синхронизации.</p>{{else}}{{#if noGM}}<h2>Мастер не в игре</h2><p>Для загрузки Агента нужен подключённый Мастер.</p>{{else}}<h2>Не удалось получить данные</h2><p>{{syncError}}</p>{{/if}}{{/if}}
+<div><button data-action="retrySync" {{#if syncing}}disabled{{/if}}>Повторить подключение</button><button data-action="connectionInfo">Диагностика связи</button></div>
+</section>
+{{else}}
 {{#if locked}}<div class="nca-empty"><h2>Хранилище закрыто</h2><p>Контакты и переписка сохранены. Импортируйте файл восстановления.</p><button data-action="data">Открыть данные</button></div>{{else}}
 {{#if noGM}}<div class="nca-warn">Нет сигнала: мастер не в игре. Черновик остаётся в открытом окне.</div>{{/if}}
 <header class="nca-top"><div class="nca-brand"><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i><div><strong>АГЕНТ</strong><span>НАЙТ-СИТИ · ЛИЧНАЯ СВЯЗЬ</span></div></div>
@@ -7,8 +15,9 @@
 <button data-action="conferences" aria-label="Конференции" title="Конференции"><i class="fa-solid fa-users"></i></button>
 
 {{#if ringing}}<button data-action="mute" aria-label="Заглушить звонок" title="Заглушить звонок"><i class="fa-solid fa-bell-slash"></i> Звонит</button>{{/if}}
-<details class="nca-menu"><summary aria-label="Меню Агента"><i class="fa-solid fa-ellipsis"></i></summary><div><button data-action="newNote">Создать заметку</button><button data-action="notes">Личный журнал</button><button data-action="emergency">Экстренные службы</button><button data-action="pickRingtone">Выбрать рингтон</button>{{#if hasOwnRingtone}}<button data-action="resetRingtone">Вернуть общий рингтон</button>{{/if}}{{#if isGM}}<button data-action="data">Данные и резервные копии</button>{{/if}}<button data-action="help">Руководство</button></div></details></header><div class="os-systembar"><span>{{osStatus}}</span><span>AGENT OS · 0.17</span></div>
+<details class="nca-menu"><summary aria-label="Меню Агента"><i class="fa-solid fa-ellipsis"></i></summary><div><button data-action="newNote">Создать заметку</button><button data-action="notes">Личный журнал</button><button data-action="emergency">Экстренные службы</button><button data-action="pickRingtone">Выбрать рингтон</button>{{#if hasOwnRingtone}}<button data-action="resetRingtone">Вернуть общий рингтон</button>{{/if}}{{#if isGM}}<button data-action="data">Данные и резервные копии</button>{{/if}}<button data-action="connectionInfo">Диагностика связи</button><button data-action="help">Руководство</button></div></details></header><div class="os-systembar"><span>{{osStatus}}</span><span>AGENT OS · 0.17</span></div>
 {{#if noDevice}}<div class="nca-empty"><h2>Ваш Агент ещё не выдан</h2><p>Попросите мастера назначить вам устройство.</p><button data-action="help">Открыть руководство</button></div>{{else}}
+{{#if syncError}}<div class="nca-sync-notice" role="status">{{syncError}} Данные на экране могут быть устаревшими. <button data-action="retrySync">Повторить подключение</button></div>{{else}}{{#if syncing}}<div class="nca-sync-notice" role="status">Обновляем данные от Мастера…</div>{{/if}}{{/if}}
 <div class="os-shell"><nav class="os-nav" aria-label="Разделы Агента">{{{osNav}}}</nav>
 {{#if osMessages}}<div class="nca-body {{#if active}}os-thread-open{{/if}} {{#if osShowContacts}}os-contacts-open{{/if}}"><aside class="nca-side"><div class="nca-sidehead"><h2>Сообщения <span class="nca-count">{{contactCount}}</span></h2><button data-action="mailing" aria-label="Рассылка сообщения" title="Рассылка сообщения"><i class="fa-solid fa-envelopes-bulk"></i></button><button data-action="newContact" aria-label="Новый контакт" title="Новый контакт"><i class="fa-solid fa-plus"></i></button></div>
 <label class="nca-searchbox"><i class="fa-solid fa-magnifying-glass"></i><input class="nca-search" type="search" value="{{search}}" placeholder="Контакт или сообщение" aria-label="Поиск контактов и сообщений"></label>
@@ -24,4 +33,4 @@
 {{#if aloud}}<div class="nca-aloud-note"><i class="fa-solid fa-volume-high"></i> Внутренний Агент без хирона: сообщения проговариваются вслух.</div>{{/if}}
 <div class="nca-compose"><textarea class="nca-input" rows="2" maxlength="2000" aria-label="Сообщение" placeholder="Написать сообщение…">{{draft}}</textarea><button data-action="sendImage" aria-label="Приложить изображение" title="Приложить изображение"><i class="fa-regular fa-image"></i></button><button data-action="files" aria-label="Приложить файл" title="Приложить файл"><i class="fa-solid fa-paperclip"></i></button><button class="nca-primary" data-action="send" aria-label="Отправить · Enter" title="Отправить · Enter"><i class="fa-solid fa-arrow-up"></i><span>Отправить</span></button></div>
 {{else}}<div class="nca-empty"><i class="fa-regular fa-comments"></i><h2>На связи с Найт-Сити</h2><p>Выберите контакт или начните новый разговор.</p></div>{{/if}}</section></div>{{else}}<main class="os-page">{{{osContent}}}<p class="os-no-results" role="status" hidden>Ничего не найдено. Измените запрос.</p></main>{{/if}}</div>{{/if}}{{/if}}
-</div>
+{{/if}}</div>

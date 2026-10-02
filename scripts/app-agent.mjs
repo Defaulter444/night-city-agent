@@ -5,7 +5,7 @@
  */
 import { readState, storageLocked } from "./store.mjs";
 import * as M from "./model.mjs";
-import { sendMessage, sendImage, setBook, markRead, setRingtone, documentOperation, noteOperation, refreshState, UPDATE_HOOK } from "./socket.mjs";
+import { sendMessage, sendImage, setBook, markRead, setRingtone, documentOperation, noteOperation, refreshState, requestState, projectionStatus, connectionDiagnostics, UPDATE_HOOK } from "./socket.mjs";
 import { shrinkImage, MAX_BYTES } from "./images.mjs";
 import { browseFiles, canUploadFiles } from "./foundry-compat.mjs";
 import { openHelp } from "./help.mjs";
@@ -29,18 +29,18 @@ function hhmm(ts) {
  * Игроки заходят на сервер по обычному http, а это не защищённый контекст —
  * navigator.clipboard там недоступен. Поэтому запасной путь через execCommand.
  */
-function copyToClipboard(text) {
+function copyToClipboard(text, notice=`Агент: номер ${text} скопирован`) {
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(text).then(
-      () => ui.notifications.info(`Агент: номер ${text} скопирован`),
-      () => legacyCopy(text)
+      () => ui.notifications.info(notice),
+      () => legacyCopy(text,notice)
     );
     return;
   }
-  legacyCopy(text);
+  legacyCopy(text,notice);
 }
 
-function legacyCopy(text) {
+function legacyCopy(text,notice) {
   const box = document.createElement("textarea");
   box.value = text;
   box.style.position = "fixed";
@@ -50,8 +50,8 @@ function legacyCopy(text) {
   let ok = false;
   try { ok = document.execCommand("copy"); } catch { ok = false; }
   box.remove();
-  if (ok) ui.notifications.info(`Агент: номер ${text} скопирован`);
-  else ui.notifications.warn(`Агент: скопируйте номер вручную — ${text}`);
+  if (ok) ui.notifications.info(notice);
+  else ui.notifications.warn('Агент: скопируйте текст вручную.');
 }
 
 /* --------------------------------------------------------------- действия */
@@ -425,6 +425,13 @@ async function modernAction(event, target) {
 
 /* ------------------------------------------------------------------- окно */
 
+function onRetrySync() { requestState({force:true}); this.render(); }
+function onConnectionInfo() {
+  const report=connectionDiagnostics();
+  new Dialog({title:'Агент — диагностика связи',content:`<p>Время ответа и размер данных последней синхронизации. Отчёт не содержит переписку, файлы или ключ восстановления.</p><pre class="nca-connection-report">${esc(JSON.stringify(report,null,2))}</pre>`,
+    buttons:{copy:{label:'Копировать отчёт',callback:()=>copyToClipboard(JSON.stringify(report,null,2),'Агент: отчёт скопирован')},measure:{label:'Обновить данные и замер',callback:()=>requestState({force:true,diagnostics:true})},close:{label:'Закрыть'}}}).render(true);
+}
+
 export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(options = {}) {
     const { num = null, other = null } = options;
@@ -478,6 +485,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
       resetRingtone: onResetRingtone,
       payEb: onPayEb,
       emergency: onEmergency,
+      retrySync: onRetrySync,
+      connectionInfo: onConnectionInfo,
       help: onHelp
     }
   };
@@ -490,7 +499,15 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
   };
 
   async _prepareContext() {
-    try { await refreshState({cached:true}); } catch (error) { console.warn('Агент:',error.message); }
+    if(game.user.isGM) {
+      try { await refreshState({cached:true}); } catch (error) { console.warn('Агент:',error.message); }
+    } else {
+      let sync=projectionStatus();
+      if(!sync.fresh && !sync.error && game.users.activeGM)requestState();
+      sync=projectionStatus();
+      if(!sync.usable)return {shell:true,noGM:!game.users.activeGM,syncing:Boolean(game.users.activeGM&&!sync.error),syncError:sync.error,
+        osCompact:this.osCompact,osReducedMotion:this.osReducedMotion};
+    }
     if (storageLocked()) return { locked: true, isGM: true };
     const state = readState();
     const isGM = game.user.isGM;
@@ -531,6 +548,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
     return {
       ...OSContext(this,state,knownContacts),
+      syncing:!game.user.isGM && !projectionStatus().fresh && !projectionStatus().error,
+      syncError:projectionStatus().error,
       isGM, search: this.search, onlyPins: this.onlyPins, contactCount: contacts.length,
       draft: this.drafts[`${this.num}|${this.other}`] ?? state.organizer?.[this.num]?.drafts?.[this.other] ?? '',
       tags: state.organizer?.[this.num]?.tags?.[this.other] ?? [],
@@ -587,6 +606,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    // The first reply can beat template rendering and the update subscription.
+    if(context.shell && (projectionStatus().usable || (context.syncing && projectionStatus().error)))queueMicrotask(()=>this._onUpdate());
     OSRender(this);
 
     const search = this.element.querySelector('.nca-search');
@@ -648,11 +669,11 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Переписка всегда прокручена к свежему сообщению.
     const thread = this.element.querySelector(".nca-thread");
     if (thread) thread.scrollTop = this._restoreScroll ?? thread.scrollHeight;
-    this._restoreScroll = null;
+    if(thread)this._restoreScroll = null;
     if (this._restoreFocus) {
       const { selector, start, end } = this._restoreFocus;
       const field = this.element.querySelector(selector);
-      field?.focus(); field?.setSelectionRange(start,end); this._restoreFocus = null;
+      if(field){field.focus();field.setSelectionRange(start,end);this._restoreFocus=null;}
     }
 
     // Сообщаем доставке, на какую переписку игрок сейчас смотрит:

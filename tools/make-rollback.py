@@ -36,7 +36,7 @@ original_entries = entries.copy()
 # Match the published files to the old commit, allowing only Windows line endings.
 tracked = set(git('ls-tree', '-r', '--name-only', commit).decode().splitlines())
 assert set(entries) == tracked, 'Published ZIP and previous tag contain different files'
-text_suffixes = {'.md', '.mjs', '.js', '.hbs', '.css', '.json', '.html', '.txt', '.svg'}
+text_suffixes = {'.md', '.mjs', '.js', '.hbs', '.css', '.json', '.html', '.txt', '.svg', '.py'}
 for name, data in entries.items():
     expected = git('show', commit + ':' + name)
     if Path(name).suffix in text_suffixes or name in {'.gitattributes', '.gitignore', 'LICENSE'}:
@@ -57,8 +57,10 @@ entries['module.json'] = manifest
 
 # The new map may already be selected in world settings when reverting.
 compatibility_asset = 'assets/night-city-2045.webp'
-assert compatibility_asset not in entries, 'Revisit compatibility assets for this target'
-entries[compatibility_asset] = (ROOT / compatibility_asset).read_bytes()
+compatibility_assets = []
+if compatibility_asset not in entries:
+    entries[compatibility_asset] = (ROOT / compatibility_asset).read_bytes()
+    compatibility_assets.append(compatibility_asset)
 args.out_dir.mkdir(parents=True, exist_ok=True)
 out = args.out_dir / zip_name
 with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
@@ -83,7 +85,7 @@ with zipfile.ZipFile(out) as archive:
 info = {
     'release': release, 'rollback_version': version, 'source_tag': args.previous_tag,
     'source_commit': commit, 'source_zip_sha256': source_sha256, 'manifest': previous['manifest'], 'download': previous['download'],
-    'modified_source_files': ['module.json'], 'compatibility_assets': [compatibility_asset],
+    'modified_source_files': ['module.json'], 'compatibility_assets': compatibility_assets,
     'files': len(entries), 'bytes': out.stat().st_size,
     'sha256': hashlib.sha256(out.read_bytes()).hexdigest(), 'archive_verified': True,
 }

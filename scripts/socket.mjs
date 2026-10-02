@@ -26,6 +26,10 @@ export const UPDATE_HOOK = "nightCityAgentUpdate";
 
 let socket = null;
 let projectionRefresh = null;
+let lastSnapshot = null, lastMeasuredSnapshot = null, measureNextSnapshot = true, snapshotSequence = 0, notificationFailures = 0;
+const projectionContext = () => !game.user.isGM && game.users.activeGM?JSON.stringify([game.world?.id,game.user.id,game.user.viewedScene,game.users.activeGM.id]):null;
+const version = () => game.modules?.get(MODULE_ID)?.version ?? 'unknown';
+const elapsed = start => Math.round(performance.now()-start);
 
 // socketlib replaces thrown remote errors with generic English text. Preserve
 // expected ledger failures so the player's window can explain the rejection.
@@ -38,13 +42,33 @@ export function registerSocket() {
   if (socket) return socket;
   socket = new PrivateSocket();
   projectionRefresh = new ProjectionRefresh({
-    context:()=>!game.user.isGM && game.users.activeGM?JSON.stringify([game.world?.id,game.user.id,game.user.viewedScene,game.users.activeGM.id]):null,
-    fetch:()=>socket.executeAsGM('snapshot'),
-    accept:acceptProjection
+    context:projectionContext,
+    fetch:async()=>{
+      const start=performance.now(),context=projectionContext(),sequence=++snapshotSequence;
+      try {
+        const reply=await socket.executeAsGM('snapshot',{protocol:'nca-snapshot-2',diagnostics:measureNextSnapshot||sequence%10===0});
+        const modern=reply?.protocol==='nca-snapshot-2';
+        const metrics=modern?reply.metrics:{};
+        if(context===projectionContext() && sequence===snapshotSequence){
+          lastSnapshot={ok:true,roundTripMs:elapsed(start),gmVersion:typeof metrics?.gmVersion==='string'?metrics.gmVersion:'unknown'};
+          for(const key of ['initMs','projectMs','bytes'])if(Number.isFinite(metrics?.[key])&&metrics[key]>=0)lastSnapshot[key]=metrics[key];
+          if(lastSnapshot.bytes!==undefined){lastMeasuredSnapshot={...lastSnapshot};measureNextSnapshot=false;}
+        }
+        return modern?reply.state:reply;
+      } catch(error) {if(context===projectionContext()&&sequence===snapshotSequence)lastSnapshot={ok:false,roundTripMs:elapsed(start)};throw error;}
+    },
+    accept:acceptProjection,
+    change:()=>Hooks.callAll(UPDATE_HOOK)
   });
-  socket.register('snapshot', async function() {
+  socket.register('snapshot', async function(options={}) {
+    const start=performance.now();
     if(protectedStorage())await initializeStorage();
-    return stateForUser(this.socketdata.userId);
+    const initMs=elapsed(start),projectionStart=performance.now();
+    const state=stateForUser(this.socketdata.userId);
+    if(options?.protocol!=='nca-snapshot-2')return state;
+    const metrics={gmVersion:version(),initMs,projectMs:elapsed(projectionStart)};
+    if(options.diagnostics)metrics.bytes=new TextEncoder().encode(JSON.stringify(state)).byteLength;
+    return {protocol:'nca-snapshot-2',state,metrics};
   });
   socket.register('osOperation', async function(data) {
     const user = game.users.get(this.socketdata.userId);
@@ -104,13 +128,15 @@ export function getSocket() {
 }
 
 export async function osOperation(op,data={}) {
-  requireGM(); const result=await socket.executeAsGM('osOperation',{...data,op}); await refreshState(); return result;
+  requireGM(); const result=await socket.executeAsGM('osOperation',{...data,op}); requestState(); return result;
 }
 
-async function notifyUsers(name, ids, ...args) {
-  // The durable mutation has succeeded. A disconnected receiver must not make
-  // the sender retry a message or a money operation that already happened.
-  await Promise.allSettled(ids.map(id => socket.executeForUsers(name, [id], ...args)));
+function notifyUsers(name, ids, ...args) {
+  // Name the durable revision. The setting hook and this notice can now share
+  // an in-flight snapshot instead of invalidating it twice.
+  const payload={...(args[0]??{}),_ncaRevision:readState().revision??0};
+  try {socket.notify(name,ids,payload);}
+  catch {notificationFailures++;}
 }
 
 const MAX_TEXT = 2000;
@@ -252,8 +278,8 @@ async function gmMarkRead({ myNum, other }) {
 
 /* ------------------------------------------------- обработчики на клиентах */
 
-async function clientDeliver({ from, to, ringtone, senderId }) {
-  await refreshState();
+async function clientDeliver({ from, to, ringtone, senderId, _ncaRevision }) {
+  await refreshNotice(_ncaRevision);
   const state = readState();
   const mine = state.devices[to]?.owner === game.user.id;
   const npc = npcIncoming(state, game.users, game.user, senderId, from, [to]).length > 0;
@@ -282,8 +308,8 @@ async function gmSendMailing(data) {
   return result;
 }
 
-async function clientConferenceDeliver({ id, from, senderId }) {
-  await refreshState();
+async function clientConferenceDeliver({ id, from, senderId, _ncaRevision }) {
+  await refreshNotice(_ncaRevision);
   const state = readState(), room = state.conferences?.[id];
   if (!room) { Hooks.callAll(UPDATE_HOOK); return; }
   const npc = npcIncoming(state, game.users, game.user, senderId, from, room.members);
@@ -299,26 +325,54 @@ async function clientConferenceDeliver({ id, from, senderId }) {
   Hooks.callAll(UPDATE_HOOK);
 }
 
-async function clientRefresh() {
-  await refreshState();
+async function clientRefresh(payload={}) {
+  await refreshNotice(payload._ncaRevision);
   Hooks.callAll(UPDATE_HOOK);
 }
-export function invalidateProjection() { projectionRefresh?.invalidate(); }
+function refreshNotice(revision) {
+  // Legacy GMs do not provide a revision, so their notices still force a read.
+  return refreshState({cached:Number.isSafeInteger(revision),minRevision:revision});
+}
+export function invalidateProjection({access=true}={}) {
+  projectionRefresh?.invalidate({access});
+  if(access && !game.user.isGM)acceptProjection(M.blankState());
+  Hooks.callAll(UPDATE_HOOK);
+}
+export function projectionStatus() {
+  if(game.user.isGM)return {usable:true,fresh:true,loading:false,error:null};
+  return projectionRefresh?.status()??{usable:false,fresh:false,loading:false,error:null};
+}
+/** Start one background read. Rendering never waits on its socket timeout. */
+export function requestState({force=false,diagnostics=false,...options}={}) {
+  if(diagnostics)measureNextSnapshot=true;
+  if(force)invalidateProjection();
+  const status=projectionStatus();
+  if(!game.user.isGM && (status.fresh || status.loading || (status.error&&!force)))return;
+  refreshState({cached:true,...options}).catch(()=>{}).finally(()=>Hooks.callAll(UPDATE_HOOK));
+}
+/** Only timings, versions and transport status; never campaign contents. */
+export function connectionDiagnostics() {
+  const sync=projectionStatus();
+  return {version:version(),role:game.user.isGM?'gm':'player',gmConnected:Boolean(game.users.activeGM),
+    serverConnected:game.socket?.connected??null,pendingRequests:socket?.pending.size??0,notificationFailures,
+    sync:{usable:sync.usable,fresh:sync.fresh,loading:sync.loading,failed:Boolean(sync.error)},
+    lastSnapshot:lastSnapshot?{...lastSnapshot}:null,lastMeasuredSnapshot:lastMeasuredSnapshot?{...lastMeasuredSnapshot}:null};
+}
 export async function refreshState(options={}) {
   if (game.user.isGM) { if (protectedStorage()) await initializeStorage(); return; }
-  if (!socket || !game.users.activeGM) return;
+  if (!socket) return;
   await projectionRefresh.refresh(options);
 }
 export async function documentOperation(op, data = {}) {
   requireGM();
   const result = await socket.executeAsGM('documentOperation', { op, ...data });
-  await refreshState();
+  requestState();
   return result;
 }
 export async function conferenceOperation(op, data = {}) {
   requireGM();
   const result = await socket.executeAsGM('conferenceOperation', { ...data, op });
-  await refreshState(); return result;
+  requestState(); return result;
 }
 export function noteOperation(op, data = {}) {
   requireGM(); return socket.executeAsGM('noteOperation', { ...data, op });
@@ -338,7 +392,7 @@ export async function sendMessage(from, to, text) {
 export async function sendMailing(from, recipients, text, operationId) {
   requireGM();
   const result = await socket.executeAsGM('sendMailing', { from, recipients, text, operationId });
-  await refreshState();
+  requestState();
   return result;
 }
 
