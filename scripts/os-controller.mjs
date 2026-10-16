@@ -9,7 +9,8 @@ import { esc, now, makeDeadline, deadlineDue, deadlineRemaining } from './clock.
 import { publicationFormValues } from './publication-time.mjs';
 import { clockAction, updateClockElements } from './clock-ui.mjs';
 import { openNoteResult } from './notes.mjs';
-import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP, articleAudience } from './os-model.mjs';
+import { JOB_STATES, PLACE_TYPES, OS_TABS, DEFAULT_CITY_MAP, articleAudience, visibleRecord, visiblePlace } from './os-model.mjs';
+import { atlasAPI, atlasLocationId, openAtlasLocation } from './atlas-link.mjs';
 import { actorForDevice, transfer, hasLedger, isNPCDevice, payFromNPC } from './wealth.mjs';
 import { clearOpenThread } from './presence.mjs';
 import { stopRing, ringKey } from './ringtone.mjs';
@@ -18,6 +19,19 @@ const field=(name,label,value='',type='text',extra='')=>`<label>${esc(label)}<in
 const area=(name,label,value='',rows=4)=>`<label>${esc(label)}<textarea name="${name}" rows="${rows}">${esc(value)}</textarea></label>`;
 const select=(name,label,options,value='')=>`<label>${esc(label)}<select name="${name}">${Object.entries(options).map(([v,s])=>`<option value="${esc(v)}" ${v===value?'selected':''}>${esc(s)}</option>`).join('')}</select></label>`;
 const check=(name,label,checked=false)=>`<label class="os-form-check"><input type="checkbox" name="${name}" ${checked?'checked':''}>${esc(label)}</label>`;
+async function atlasField(record) {
+  const api=atlasAPI();
+  if(typeof api?.listLocations==='function') {
+    try {
+      const locations=await api.listLocations();
+      const options={'':'Без связи с Atlas'};
+      for(const place of locations??[])if(atlasLocationId(place.id))options[place.id]=String(place.name??place.id);
+      if(record.atlasLocationId&&!Object.hasOwn(options,record.atlasLocationId))options[record.atlasLocationId]='Сохранённое место · '+record.atlasLocationId;
+      return select('atlasLocationId','Место в Atlas',options,record.atlasLocationId||'');
+    } catch { /* A temporarily unavailable Atlas must not block the Agent editor. */ }
+  }
+  return field('atlasLocationId','Связь с Atlas (ID места)',record.atlasLocationId||'','text','maxlength="128" pattern="[a-zA-Z0-9_-]{1,128}"')+'<p class="hint">Необязательно. Выберите место в Atlas или вставьте его ID. Координаты карты Агента не меняются.</p>';
+}
 function imageFields(value='') { return field('image','Путь или ссылка на изображение',value.startsWith('data:')?'':value)+`<label>Или изображение с компьютера<input type="file" name="upload" accept="${ALLOWED_TYPES.join(',')}"></label>`+check('clearImage','Убрать изображение')+(value?'<p class="hint">Текущее изображение сохранится, если не выбрать новое.</p>':''); }
 async function imageValue(fd,old='',maxBytes=1500000) {
   if(fd.has('clearImage'))return '';
@@ -35,7 +49,7 @@ function chooseNumbers(state,number,{exclude=[],selected=[]}={}) {
   return `<fieldset class="nca-member-picker"><legend>Участники</legend>${contacts.filter(c=>c.num!==number&&!exclude.includes(c.num)).map(c=>`<label class="nca-member-choice"><input type="checkbox" name="members" value="${c.num}" ${selected.includes(c.num)?'checked':''}><span>${esc(c.name)}<small>${c.num}</small></span></label>`).join('')}</fieldset>`+field('extra','Дополнительные номера через запятую');
 }
 const memberValues=fd=>[...new Set([...fd.getAll('members'),...String(fd.get('extra')||'').split(/[,;]+/).filter(s=>s.trim())].map(normalizeNumber))];
-const LOCAL_VIEW_ACTIONS=new Set(['nav','chatList','contactFilter','jobFilter','newsFilter','newsTrash','newsMore','fileFilter','fileTrash','documentSelect','placeSelect','gotoPlace','callScope','callFilter']);
+const LOCAL_VIEW_ACTIONS=new Set(['nav','chatList','contactFilter','jobFilter','newsFilter','newsTrash','newsMore','fileFilter','fileTrash','documentSelect','placeSelect','gotoPlace','atlasLocation','callScope','callFilter']);
 export function selectOSDocument(app,id) {
   app.osDocId=id;app.osTab='files';app.osFileTrash=false;app.osFileType='';app.osFolder='';(app.osSearch??={}).files='';
 }
@@ -92,6 +106,11 @@ export async function performOS(app,event,target) {
       if(op==='gotoPlace'||target.dataset.focus){app.osMapFocus=target.dataset.id;app.osMapCategory='';(app.osSearch??={}).map='';}
       return;
     }
+    if(op==='atlasLocation') {
+      const kind=target.dataset.kind,record=kind==='job'?os.jobs?.[target.dataset.id]:kind==='place'?os.places?.[target.dataset.id]:null;
+      if(!(kind==='job'?visibleRecord:visiblePlace)(state,record,user))throw Error('Запись недоступна');
+      return await openAtlasLocation(record.atlasLocationId);
+    }
     if(op==='callSelect'){app.osCallId=target.dataset.id;return;}
     if(op==='callScope'){if(!user.isGM)throw Error('Доступно только мастеру');app.osCallScope=target.dataset.scope==='mine'?'mine':'all';app.osCallId=null;return;}
     if(op==='callFilter'){app.osCallFilter=target.dataset.filter;app.osCallId=null;return;}
@@ -111,9 +130,15 @@ export async function performOS(app,event,target) {
     }
     if(['job','place','article'].includes(op)) {
       const collection={job:'jobs',place:'places',article:'articles'}[op],old=os[collection]?.[target.dataset.id]??{};
+      if(op==='job'&&!target.dataset.id&&target.dataset.atlasLocationId) {
+        if(!user.isGM)throw Error('Доступно только Мастеру');
+        old.atlasLocationId=atlasLocationId(target.dataset.atlasLocationId);
+        old.title=`Работа: ${String(target.dataset.atlasLocationName||'Место Atlas').slice(0,140)}`;
+      }
       let form=field('title','Название',old.title,'text','required maxlength="160"')+(op==='article'?audience(state,old,op):'')+area('body','Описание',old.body);
       if(op==='job') form+=select('status','Состояние',JOB_STATES,old.status||'planned')+field('reward','Награда, эдди',old.reward||0,'number','min="0" step="1"')+field('fixer','Заказчик',old.fixer)+field('due','Игровой срок',old.due,'text','placeholder="Сегодня, 23:00"')+select('placeId','Место',{'':'Без привязки',...Object.fromEntries(Object.values(os.places??{}).map(p=>[p.id,p.title]))},old.placeId)+area('steps','Этапы — по одному на строку',(old.steps??[]).map(s=>s.label).join('\n'));
       if(op==='place') form+=select('category','Категория',PLACE_TYPES,old.category||'place')+field('district','Район',old.district)+field('contact','Номер контакта',old.contact)+'<details class="os-map-coordinates"><summary>Точные координаты</summary>'+field('x','Положение по горизонтали, %',old.x??target.dataset.mapX??50,'number','min="0" max="100" step="0.01"')+field('y','Положение по вертикали, %',old.y??target.dataset.mapY??50,'number','min="0" max="100" step="0.01"')+'</details>';
+      if(op==='job'||op==='place')form+=await atlasField(old);
       if(op==='article') {
         if(!user.isGM)throw Error('Доступно только мастеру');
         const publication=publicationFormValues(old,now());
@@ -125,7 +150,7 @@ export async function performOS(app,event,target) {
       }
       form+='<details class="os-form-image"><summary>Изображение'+(old.image?' · добавлено':'')+'</summary>'+imageFields(old.image||'')+'</details>'+(op==='article'?'':audience(state,old,op));
       const rid=await inputDialog({job:'Задание',place:'Место на карте',article:'Публикация Data Pool'}[op],form,async fd=>mutate(op,{...Object.fromEntries([...fd.entries()].filter(([k])=>!k.startsWith('aud-')&&k!=='upload')),id:old.id,...audienceData(fd,state),image:await imageValue(fd,old.image)}));
-      if(rid&&op==='place'){app.osPlaceId=rid;app.osMapCategory='';(app.osSearch??={}).map='';}return;
+      if(rid&&op==='place'){app.osPlaceId=rid;app.osMapCategory='';(app.osSearch??={}).map='';}return rid??null;
     }
     if(op==='mapEdit') {
       const old=os.map??{};
@@ -260,6 +285,10 @@ export function OSRender(app) {
     (app.osSearch??={})[app.osTab]=input.value;filter();
     if(app.osTab==='news')scheduleNewsSearch();
   });filter();
+  if(app.osTab==='jobs'&&app.osJobFocus) {
+    const card=[...root.querySelectorAll('[data-job-id]')].find(node=>node.dataset.jobId===app.osJobFocus);
+    if(card){card.scrollIntoView?.({block:'center'});card.focus?.({preventScroll:true});app.osJobFocus=null;}
+  }
   const update=async(op,data)=>{try{await osOperation(op,{number:app.num,...data});}catch(e){ui.notifications.error(e.message);}finally{if(!app.closing)app.render();}};
   root.querySelectorAll('.os-job-step').forEach(el=>el.addEventListener('change',()=>update('jobStep',{id:el.dataset.id,stepId:el.dataset.step,done:el.checked})));
   root.querySelectorAll('.os-reminder-check').forEach(el=>el.addEventListener('change',()=>update('reminder',{id:el.dataset.id,done:el.checked})));

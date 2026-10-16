@@ -440,6 +440,8 @@ export class AgentApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.other = other;
     this.closing = false;
     this.osTab = options.tab || (other ? 'messages' : 'home');
+    this.osJobFocus = options.jobId || null;
+    this.osJobArchive = Boolean(options.jobArchive);
     this.osCallScope = options.callScope || 'all';
     this.osCompact = Boolean(game.settings.get('night-city-agent','osCompact'));
     this.osReducedMotion = Boolean(game.settings.get('night-city-agent','osReducedMotion'));
@@ -735,6 +737,7 @@ export function openAgent(opts = {}) {
   if (existing?.rendered) {
     if (opts.other) { existing.other = opts.other; existing.osTab='messages'; existing.osShowContacts=false; }
     if (opts.tab) existing.osTab=opts.tab;
+    if (opts.jobId) { existing.osJobFocus=opts.jobId;existing.osJobArchive=Boolean(opts.jobArchive);(existing.osSearch??={}).jobs=''; }
     if (opts.callScope) { existing.osCallScope=opts.callScope;existing.osCallId=null;existing.osCallFilter=''; }
     existing.bringToFront();
     existing.render();

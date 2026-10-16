@@ -2,6 +2,7 @@
 import { NUMBER_RE, normalizeNumber, pushMessage } from './model.mjs';
 import { imageIssue } from './images.mjs';
 import { publicationValue } from './publication-time.mjs';
+import { atlasLocationId } from './atlas-link.mjs';
 const clone = x => structuredClone(x);
 const id = () => [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2,'0')).join('');
 const text = (s, max=2000) => String(s ?? '').trim().slice(0,max);
@@ -96,6 +97,10 @@ export function applyOSOperation(state,data,user,now=Date.now()) {
     const record = { id:rid, title, body:text(data.body,16000), image:imageSource(data.image), authorId:old?.authorId || user.id,
       numbers:user.isGM ? numbers(state,data.numbers ?? []) : [number], public:Boolean(user.isGM && data.public), published:user.isGM ? Boolean(data.published) : true,
       createdAt:old?.createdAt || now, updatedAt:now };
+    if (op === 'job' || op === 'place') {
+      const linked = atlasLocationId(Object.hasOwn(data,'atlasLocationId') ? data.atlasLocationId : old?.atlasLocationId);
+      if (linked) record.atlasLocationId = linked;
+    }
     if (op === 'job') {
       const reward=Number(data.reward || 0); if (!Number.isFinite(reward) || reward<0) throw Error('Некорректная награда');
       const lines = String(data.steps ?? '').split('\n').map(s=>text(s,240)).filter(Boolean).slice(0,30);

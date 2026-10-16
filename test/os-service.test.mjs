@@ -86,6 +86,45 @@ test('the actual GM article editor retains manually chosen date and time',async(
  } finally {globalThis.Dialog=previous;}
 });
 
+test('Atlas fields use the authenticated OS transport and retain private audiences',async()=>{
+ reset();const location='wiki-location-45aacb4d5a554ecf218f';
+ const id=await run('job',{title:'Private Atlas job',atlasLocationId:location,public:true,numbers:['2222-2222']});
+ assert.equal(state.os.jobs[id].atlasLocationId,location);assert.deepEqual(state.os.jobs[id].numbers,['1111-1111']);assert.equal(state.os.jobs[id].public,false);
+ assert.equal(D.projectState(state,q).os.jobs[id],undefined);
+ const before=structuredClone(state);
+ await assert.rejects(run('place',{title:'Spoofed GM',x:10,y:20,atlasLocationId:location,senderId:'gm'}),/мастер/);
+ await assert.rejects(run('job',{id,title:'Invalid link',atlasLocationId:'https://example.test'}),/Atlas/);
+ assert.deepEqual(state,before);
+});
+
+test('Atlas draft uses the existing editor and cancelling creates no record',async()=>{
+ reset();const location='wiki-location-45aacb4d5a554ecf218f',before=structuredClone(state);
+ const {performOS}=await import('../scripts/os-controller.mjs');let content;
+ const previous=globalThis.Dialog;
+ globalThis.Dialog=class{constructor(data){this.data=data;content=data.content;}render(){this.data.close();return this;}};
+ game.modules.set('night-city-2045-atlas',{active:true,api:{canOpen:()=>true,openLocation(){},listLocations:async()=>[{id:location,name:'Посмертие'}]}});
+ try {
+  const result=await performOS({num:'1111-1111',saveDraft:async()=>{},render(){}},null,{dataset:{os:'job',atlasLocationId:location,atlasLocationName:'Посмертие'}});
+  assert.equal(result,null);assert.match(content,/Работа: Посмертие/);assert.match(content,new RegExp(`value="${location}" selected`));
+  assert.match(content,/name="published"[^>]*>/);assert.doesNotMatch(content,/name="published"[^>]*checked/);
+  assert.deepEqual(state,before);
+ } finally {globalThis.Dialog=previous;game.modules.delete('night-city-2045-atlas');}
+});
+
+test('Atlas buttons respect local Atlas access and linked record visibility',async()=>{
+ reset();const location='wiki-location-45aacb4d5a554ecf218f';
+ const id=await run('job',{title:'Linked visible job',atlasLocationId:location,published:true,numbers:['1111-1111']},'gm');
+ await run('job',{title:'Hidden Atlas job',atlasLocationId:location},'gm');
+ game.user=p;
+ let allow=false;
+ game.modules.set('night-city-2045-atlas',{active:true,api:{canOpen:()=>allow,openLocation(){}}});
+ try {
+  assert.doesNotMatch(OSContext({num:'1111-1111',osTab:'jobs'},D.projectState(state,p)).osContent,/data-os="atlasLocation"/);
+  allow=true;const html=OSContext({num:'1111-1111',osTab:'jobs'},D.projectState(state,p)).osContent;
+  assert.match(html,/data-os="atlasLocation"/);assert.match(html,new RegExp(`data-job-id="${id}"`));assert.doesNotMatch(html,/Hidden Atlas job/);
+ } finally {game.modules.delete('night-city-2045-atlas');game.user=gm;}
+});
+
 test('opening an attachment or a new file clears filters that would hide it',async()=>{
  const {selectOSDocument}=await import('../scripts/os-controller.mjs');
  const app={osTab:'files',osFileTrash:true,osFileType:'notes',osFolder:'Another folder',osSearch:{files:'unrelated',contacts:'Ви'}};

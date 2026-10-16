@@ -15,7 +15,8 @@ import * as M from "./model.mjs";
 import * as Wealth from "./wealth.mjs";
 import * as Services from "./services.mjs";
 import * as Clock from "./clock.mjs";
-import { checkOSReminders } from './os-controller.mjs';
+import { checkOSReminders, performOS } from './os-controller.mjs';
+import { createAtlasIntegration } from './atlas-integration.mjs';
 
 Hooks.once("init", () => {
   registerSettings();
@@ -59,6 +60,12 @@ Hooks.once("ready", async () => {
   if (mod) {
     mod.api = {
       openAgent, openGMPanel, openWorkspace, openConferences, openHelp, closeAllAgents, readState, model: M, connectionDiagnostics,
+      ...createAtlasIntegration({getUser:()=>game.user,refreshState,readState,storageLocked,openAgent,
+        openDraft:async({number,location})=>{
+          const app=openAgent({num:number,tab:'jobs'});
+          await app.render(true);
+          return performOS(app,null,{dataset:{os:'job',atlasLocationId:location.id,atlasLocationName:location.name}});
+        }}),
       // Деньги и службы отданы наружу: их удобно дёргать макросами мастера.
       transferEb: Wealth.transfer,
       adjustEb: Wealth.adjust,
