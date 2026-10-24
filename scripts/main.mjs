@@ -2,7 +2,7 @@
  * Точка входа модуля «Агент».
  */
 import { MODULE_ID, registerSettings, readState, initializeStorage, storageLocked } from "./store.mjs";
-import { registerSocket, refreshState, requestState, connectionDiagnostics, invalidateProjection, broadcastRefresh, UPDATE_HOOK } from "./socket.mjs";
+import { registerSocket, refreshState, requestState, connectionDiagnostics, invalidateProjection, broadcastRefresh, UPDATE_HOOK, osOperation, markRead } from "./socket.mjs";
 import { openAgent, closeAllAgents } from "./app-agent.mjs";
 import { openGMPanel } from "./app-gm.mjs";
 import { openHelp } from "./help.mjs";
@@ -17,6 +17,7 @@ import * as Services from "./services.mjs";
 import * as Clock from "./clock.mjs";
 import { checkOSReminders, performOS } from './os-controller.mjs';
 import { createAtlasIntegration } from './atlas-integration.mjs';
+import { renderHoloCall } from './holo-call.mjs';
 
 Hooks.once("init", () => {
   registerSettings();
@@ -25,6 +26,7 @@ Hooks.once("init", () => {
     game.settings.register(MODULE_ID,key,{name:`${label}: точные названия подписок`,hint:"Для своих предметов: перечислите полные названия через точку с запятой. Метки подписок на предметах имеют приоритет. Пустое поле сохраняет обычное распознавание.",scope:"world",config:true,type:String,default:""});
   }
   for (const [key,name] of [['osCompact','Агент: компактный корпус'],['osReducedMotion','Агент: уменьшить эффекты']]) game.settings.register(MODULE_ID,key,{name,scope:'client',config:false,type:Boolean,default:false});
+  game.settings.register(MODULE_ID,'holoCall',{name:'Агент: голо-вызов поверх экрана',hint:'Входящий вызов всплывает с портретом звонящего и кнопками «Принять» и «Отклонить». Мастер видит вызовы НПС. Личная настройка.',scope:'client',config:true,type:Boolean,default:true,onChange:()=>Hooks.callAll(UPDATE_HOOK)});
   console.log("night-city-agent | настройки зарегистрированы");
 });
 
@@ -61,10 +63,10 @@ Hooks.once("ready", async () => {
     mod.api = {
       openAgent, openGMPanel, openWorkspace, openConferences, openHelp, closeAllAgents, readState, model: M, connectionDiagnostics,
       ...createAtlasIntegration({getUser:()=>game.user,refreshState,readState,storageLocked,openAgent,
-        openDraft:async({number,location})=>{
+        openDraft:async({number,location,draft})=>{
           const app=openAgent({num:number,tab:'jobs'});
           await app.render(true);
-          return performOS(app,null,{dataset:{os:'job',atlasLocationId:location.id,atlasLocationName:location.name}});
+          return performOS(app,null,{dataset:{os:'job',atlasLocationId:location.id,atlasLocationName:location.name,jobDraft:draft}});
         }}),
       // Деньги и службы отданы наружу: их удобно дёргать макросами мастера.
       transferEb: Wealth.transfer,
@@ -75,7 +77,9 @@ Hooks.once("ready", async () => {
       broadcast: Services.broadcast,
       inspectLifestyle: Services.inspectLifestyle,
       findMembership: Services.findMembership,
-      clock: Clock.now
+      clock: Clock.now,
+      // Макрос Мастера: позвонить от имени НПС, например holoCall({from:'1111-1111',to:['2222-2222']}).
+      holoCall: async({from,to})=>{if(!game.user.isGM)throw Error('Звонить от имени НПС может только Мастер');return osOperation('callStart',{number:from,members:Array.isArray(to)?to:[to]});}
     };
   }
 
@@ -90,6 +94,12 @@ Hooks.once("ready", async () => {
   Hooks.on('updateWorldTime', tick);
   Hooks.on('simple-calendar-date-time-change',checkOSReminders);
   Hooks.on('simple-calendar-date-time-change',tick);
+
+  // Голо-вызов: оверлей следует за состоянием Агента, ответ — обычная операция вызова.
+  const openCall=call=>{const app=openAgent({num:call.number,tab:'calls'});app.osCallId=call.id;app.render();return app;};
+  const answerCall=async(call,reply)=>{await osOperation('callReply',{number:call.number,id:call.id,reply});await markRead(call.number,call.from).catch(()=>{});};
+  const holo=()=>{try{renderHoloCall({readState:()=>storageLocked()?null:readState(),answer:answerCall,open:openCall});}catch(error){console.error('night-city-agent | голо-вызов',error);}};
+  Hooks.on(UPDATE_HOOK,holo);
 
   // Publish the API and buttons before asking the remote GM for a snapshot.
   initializeStorage().then(()=>{requestState();Hooks.callAll(UPDATE_HOOK);})

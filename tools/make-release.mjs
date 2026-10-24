@@ -104,7 +104,9 @@ function crc32(buf) {
 
 const files = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf-8" })
   .split("\0")
-  .filter(Boolean);
+  .filter(Boolean)
+  // Тестовый канал (distribution/preview) — отдельная копия релиза, внутрь релиза не кладётся.
+  .filter((name) => !name.startsWith("distribution/"));
 
 const missing = files.filter((name) => !fs.existsSync(path.join(ROOT, name)));
 if (missing.length) {

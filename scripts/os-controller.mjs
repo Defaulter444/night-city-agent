@@ -134,6 +134,12 @@ export async function performOS(app,event,target) {
         if(!user.isGM)throw Error('Доступно только Мастеру');
         old.atlasLocationId=atlasLocationId(target.dataset.atlasLocationId);
         old.title=`Работа: ${String(target.dataset.atlasLocationName||'Место Atlas').slice(0,140)}`;
+        const draft=target.dataset.jobDraft;
+        if(draft&&typeof draft==='object') {
+          for(const key of ['title','body','fixer','due'])if(draft[key])old[key]=draft[key];
+          if(draft.reward)old.reward=draft.reward;
+          if(draft.steps?.length)old.steps=draft.steps.map(label=>({label}));
+        }
       }
       let form=field('title','Название',old.title,'text','required maxlength="160"')+(op==='article'?audience(state,old,op):'')+area('body','Описание',old.body);
       if(op==='job') form+=select('status','Состояние',JOB_STATES,old.status||'planned')+field('reward','Награда, эдди',old.reward||0,'number','min="0" step="1"')+field('fixer','Заказчик',old.fixer)+field('due','Игровой срок',old.due,'text','placeholder="Сегодня, 23:00"')+select('placeId','Место',{'':'Без привязки',...Object.fromEntries(Object.values(os.places??{}).map(p=>[p.id,p.title]))},old.placeId)+area('steps','Этапы — по одному на строку',(old.steps??[]).map(s=>s.label).join('\n'));

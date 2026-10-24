@@ -16,6 +16,17 @@ export function linkedJobs(state, user, value) {
       status: Object.hasOwn(JOB_STATES, job.status) ? job.status : 'planned' }));
 }
 
+const text = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+/** Prefill for the normal job editor (e.g. Atlas «Заказ от фиксера»). Nothing is stored until the GM saves the form. */
+export function jobDraftFields(value) {
+  if (!value || typeof value !== 'object') return null;
+  const reward = Number(value.reward);
+  const steps = Array.isArray(value.steps) ? value.steps.map(step => text(step, 140)).filter(Boolean).slice(0, 12) : [];
+  const draft = { title: text(value.title, 160), body: text(value.body, 4000), fixer: text(value.fixer, 140), due: text(value.due, 80),
+    reward: Number.isSafeInteger(reward) && reward >= 0 && reward <= 10_000_000 ? reward : 0, steps };
+  return Object.values(draft).some(v => Array.isArray(v) ? v.length : Boolean(v)) ? draft : null;
+}
+
 /** Uses the normal viewer projection and editor; adds no storage or socket channel. */
 export function createAtlasIntegration({ getUser, refreshState, readState, storageLocked, openAgent, openDraft }) {
   async function context() {
@@ -46,7 +57,7 @@ export function createAtlasIntegration({ getUser, refreshState, readState, stora
       if (!device) throw Error('Сначала получите устройство Агента');
       return openAgent({ num: device.num, tab: 'jobs', jobId: id, jobArchive: ['done', 'archived'].includes(job.status) });
     },
-    async draftJobForLocation(location) {
+    async draftJobForLocation(location, prefill = null) {
       if (!getUser()?.isGM) throw Error('Создать черновик из Atlas может только Мастер');
       const id = atlasLocationId(location?.id);
       if (!id) throw Error('Выберите место Atlas');
@@ -56,7 +67,7 @@ export function createAtlasIntegration({ getUser, refreshState, readState, stora
       if (!user.isGM) throw Error('Доступно только Мастеру');
       const device = deviceFor(state, user);
       if (!device) throw Error('Сначала создайте устройство Агента');
-      return openDraft({ number: device.num, location: { id, name } });
+      return openDraft({ number: device.num, location: { id, name }, draft: jobDraftFields(prefill) });
     }
   });
 }

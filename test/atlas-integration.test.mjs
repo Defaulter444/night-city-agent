@@ -74,7 +74,10 @@ test('draft integration is GM-only and only opens a prefilled editor, with no au
   const s=fixture(),h=integration(s),before=structuredClone(s);
   await assert.rejects(h.api.draftJobForLocation({id:location,name:'Посмертие'}),/Мастер/);assert.deepEqual(h.calls,[]);assert.deepEqual(h.drafts,[]);
   h.setUser(gm);assert.equal(await h.api.draftJobForLocation({id:location,name:' Посмертие '}),null);
-  assert.deepEqual(h.drafts,[{number:a,location:{id:location,name:'Посмертие'}}]);assert.deepEqual(s,before);
+  assert.deepEqual(h.drafts,[{number:a,location:{id:location,name:'Посмертие'},draft:null}]);assert.deepEqual(s,before);
+  await h.api.draftJobForLocation({id:location,name:'Посмертие'},{title:' Охрана: Посмертие ',body:'Прикрыть клиента',fixer:'Падре',due:'24 часа',reward:1500,steps:['Встретиться',' ','Получить оплату'],secret:'x'});
+  assert.deepEqual(h.drafts.at(-1).draft,{title:'Охрана: Посмертие',body:'Прикрыть клиента',fixer:'Падре',due:'24 часа',reward:1500,steps:['Встретиться','Получить оплату']});
+  await h.api.draftJobForLocation({id:location,name:'Посмертие'},{reward:-5,steps:'не массив'});assert.equal(h.drafts.at(-1).draft,null);assert.deepEqual(s,before);
   await assert.rejects(h.api.draftJobForLocation({id:'bad/id',name:'X'}),/Atlas/);
   await assert.rejects(h.api.draftJobForLocation({id:location,name:''}),/название/);
 });

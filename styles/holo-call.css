@@ -1,0 +1,33 @@
+/* Голо-вызов: входящий вызов Агента поверх экрана. */
+#nca-holo-call {
+  position: fixed; top: 72px; left: 50%; z-index: 1000; transform: translateX(-50%);
+  display: flex; gap: 16px; align-items: center; width: min(460px, calc(100vw - 32px)); padding: 16px 18px 14px;
+  border: 1px solid #51dce899; border-radius: 6px; color: #dff9fb;
+  background: linear-gradient(180deg, #07202acc, #041016ee), repeating-linear-gradient(0deg, transparent 0 3px, #51dce80c 3px 4px);
+  box-shadow: 0 0 0 1px #02090c, 0 0 28px #51dce855, inset 0 0 22px #51dce822;
+  font-family: var(--nca-heading, 'Rajdhani', 'Roboto Condensed', sans-serif);
+  animation: nca-holo-in .35s ease-out both;
+}
+#nca-holo-call .nca-holo__beam { position: absolute; inset: 0; pointer-events: none; border-radius: 6px; overflow: hidden; }
+#nca-holo-call .nca-holo__beam::before { content: ''; position: absolute; left: 0; right: 0; height: 30%; background: linear-gradient(180deg, transparent, #51dce81f, transparent); animation: nca-holo-scan 2.4s linear infinite; }
+#nca-holo-call .nca-holo__portrait {
+  position: relative; flex: 0 0 auto; width: 86px; height: 96px; display: grid; place-items: center; border: 1px solid #51dce8aa; border-radius: 5px;
+  background: #031015; color: #51dce8; font-size: 34px; overflow: hidden; filter: drop-shadow(0 0 6px #51dce866);
+}
+#nca-holo-call .nca-holo__portrait img { width: 100%; height: 100%; object-fit: cover; filter: sepia(.35) hue-rotate(140deg) saturate(1.6) brightness(1.05); opacity: .92; }
+#nca-holo-call .nca-holo__portrait::after { content: ''; position: absolute; inset: -6px; border: 2px solid #51dce8; border-radius: 8px; opacity: 0; animation: nca-holo-ring 1.6s ease-out infinite; }
+#nca-holo-call .nca-holo__body { position: relative; min-width: 0; flex: 1; }
+#nca-holo-call .nca-holo__kicker { margin: 0; font-size: 11px; letter-spacing: 1.5px; color: #51dce8; text-transform: uppercase; }
+#nca-holo-call h3 { margin: 2px 0 0; border: 0; font-size: 22px; letter-spacing: .5px; color: #f2feff; text-shadow: 0 0 8px #51dce877; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nca-holo-call .nca-holo__meta { margin: 0 0 10px; color: #9fd3da; font-size: 12px; }
+#nca-holo-call .nca-holo__actions { display: flex; gap: 8px; }
+#nca-holo-call button { flex: 0 0 auto; width: auto; min-height: 32px; padding: 0 12px; border: 1px solid #30606c; border-radius: 4px; background: #0a1a20; color: #51dce8; font-size: 13px; line-height: 30px; }
+#nca-holo-call button[data-reply="accepted"] { border-color: #3fd08a; color: #7ff0b4; }
+#nca-holo-call button[data-reply="declined"] { border-color: #e8434f; color: #ff8790; }
+#nca-holo-call button:hover:not(:disabled) { background: #14323c; box-shadow: 0 0 8px currentColor; }
+#nca-holo-call .nca-holo__more { margin: 6px 0 0; font-size: 11px; color: #9fd3da; }
+#nca-holo-call .nca-holo__more:empty { display: none; }
+@keyframes nca-holo-in { from { opacity: 0; transform: translate(-50%, -12px) scaleY(.6); } to { opacity: 1; transform: translate(-50%, 0) scaleY(1); } }
+@keyframes nca-holo-scan { from { top: -30%; } to { top: 100%; } }
+@keyframes nca-holo-ring { 0% { opacity: .8; transform: scale(.94); } 100% { opacity: 0; transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { #nca-holo-call, #nca-holo-call *, #nca-holo-call *::before, #nca-holo-call *::after { animation: none !important; } }
