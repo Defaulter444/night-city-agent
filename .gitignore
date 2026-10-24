@@ -6,3 +6,4 @@ node_modules/
 .DS_Store
 Thumbs.db
 night-city-agent.zip
+!distribution/preview/night-city-agent.zip
